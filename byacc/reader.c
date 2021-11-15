@@ -3940,7 +3940,26 @@ static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
             snprintf(*buf, sizeof(char64_t), "x%s", tkname);
             (*buf)[1] = '_';
     }
-    else if(isupper(tkname[0]) && islower(tkname[1])) {
+    else if(islower(tkname[1])) {
+            snprintf(*buf, sizeof(char64_t), "%s", tkname);
+            (*buf)[0] = toupper(tkname[0]);
+    }
+    else
+        snprintf(*buf, sizeof(char64_t), "%s", tkname);
+    for(int i=0; (*buf)[i]; ++i) {
+        if((*buf)[i] == '.')
+            (*buf)[i] = '_';
+    }
+    return *buf;
+}
+
+static const char *get_lemon_rule_name(char64_t *buf, const char *tkname)
+{
+    if(tkname[0] == '.') {
+            snprintf(*buf, sizeof(char64_t), "x%s", tkname);
+            (*buf)[1] = '_';
+    }
+    else if(isupper(tkname[0])) {
             snprintf(*buf, sizeof(char64_t), "%s", tkname);
             (*buf)[0] = tolower(tkname[0]);
     }
@@ -4010,7 +4029,7 @@ print_grammar_lemon(void)
             fprintf(f, " .\n");
         }
     }
-    fprintf(f, "\n%%start_symbol %s\n", get_lemon_token_name(&buf, goal->name));
+    fprintf(f, "\n%%start_symbol %s\n", get_lemon_rule_name(&buf, goal->name));
 
     k = 1;
     for (i = START_RULE_IDX; i < nrules; ++i)
@@ -4020,7 +4039,7 @@ print_grammar_lemon(void)
 	{
             if (rlhs[i] != rlhs[i - 1]) fprintf(f, "\n");
 	    if(!skip_rule)
-                fprintf(f, "%s ::=", (i == START_RULE_IDX) ? "x_start_rule_" : get_lemon_token_name(&buf, sym_name));
+                fprintf(f, "%s ::=", (i == START_RULE_IDX) ? "x_start_rule_" : get_lemon_rule_name(&buf, sym_name));
 	}
 
         if(!(ritem[k] >= 0)) {
@@ -4034,7 +4053,11 @@ print_grammar_lemon(void)
                 Value_t symbol = ritem[k];
                 sym_name = symbol_name[symbol];
                 if(!skip_rule && sym_name[0] != '$') {
-                    fprintf(f, " %s", get_lemon_token_name(&buf, sym_name));
+                    bucket *bp = lookup(sym_name);
+                    if(bp->class == TERM)
+                        fprintf(f, " %s", get_lemon_token_name(&buf, sym_name));
+                    else
+                        fprintf(f, " %s", get_lemon_rule_name(&buf, sym_name));
                 }
                 ++k;
             }
@@ -4244,13 +4267,13 @@ reader(void)
     create_symbol_table();
     read_declarations();
     read_grammar();
-    free_symbol_table();
     pack_names();
     check_symbols();
     pack_symbols();
     pack_grammar();
     print_grammar_lemon(); // need be before free_symbols
     print_grammar_naked(); // need be before free_symbols
+    free_symbol_table();
     free_symbols();
     print_grammar();
     print_grammar_ebnf();
