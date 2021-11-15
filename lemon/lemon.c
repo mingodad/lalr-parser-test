@@ -852,22 +852,25 @@ void FindRulePrecedences(struct lemon *xp)
   for(rp=xp->rule; rp; rp=rp->next){
     if( rp->precsym==0 ){
       int i, j;
+      struct symbol *use_sp = NULL;
       for(i=0; i<rp->nrhs; i++){
-        if(rp->precsym && !xp->yaccPrec) {
+        if(use_sp && !xp->yaccPrec) {
             break;
         }
         struct symbol *sp = rp->rhs[i];
         if( sp->type==MULTITERMINAL ){
           for(j=0; j<sp->nsubsym; j++){
-            if( sp->subsym[j]->prec>=0 ){
-              rp->precsym = sp->subsym[j];
+            if( sp->subsym[j]->prec>=0 || xp->yaccPrec){
+              use_sp = sp->subsym[j];
               if(!xp->yaccPrec) break;
             }
           }
-        }else if( sp->prec>=0 ){
-          rp->precsym = rp->rhs[i];
+        }else if( sp->type == TERMINAL && (sp->prec>=0  || xp->yaccPrec)){
+          use_sp = rp->rhs[i];
         }
       }
+      if(use_sp && use_sp->prec >= 0)
+          rp->precsym = use_sp;
     }
   }
   return;
