@@ -14,6 +14,7 @@ The byacc parser (from https://invisible-island.net/byacc/byacc.html) here have 
 - Command line option to convert from yacc grammar to EBNF grammar (understood by https://www.bottlecaps.de/rr/ui) `-e                    write ebnf grammar`
 - Command line option to ignore all precedences `-u                    ignore precedences`
 - Command line option to use lemon rule precedences `-z                    use leftmost token for rule precedence`
+- Add code to accept/skip bison styles alias for non-terminals `rule[alias]` 
 
 
 All of the above was made to make easier to compare how lemon/byacc/bison parse LARL(1) grammars.
@@ -169,5 +170,68 @@ cfront3-naked.y: note: rerun with option '-Wcounterexamples' to generate conflic
 cfront3-naked.y:251.11-29: warning: rule useless in parser due to conflicts [-Wother]
   251 | 	| e /*14:1*/ %prec GT
       |           ^~~~~~~~~~~~~~~~~~~
+```
+
+Testing cql grammar (https://github.com/facebookincubator/CG-SQL/blob/main/sources/cql.y):
+```
+$>byacc-nb -E cql.y # convert yacc grammar to lemon grammar
+
+$>mv y.yl cql.yl # rename converted lemon grammar
+
+$>lemon-nb -s cql.yl
+Parser statistics:
+  terminal symbols...................   246
+  non-terminal symbols...............   234
+  total symbols......................   480
+  rules..............................   695
+  states.............................   766
+  conflicts..........................     0
+  action table entries...............  5146
+  lookahead table entries............  5146
+  total table size (bytes)........... 24484
+
+$>lemon-nb -s -z cql.yl #parse using yacc rule precedences
+Parser statistics:
+  terminal symbols...................   246
+  non-terminal symbols...............   234
+  total symbols......................   480
+  rules..............................   695
+  states.............................   766
+  conflicts..........................     0
+  action table entries...............  5146
+  lookahead table entries............  5146
+  total table size (bytes)........... 24484
+
+$>lemon-nb -s -u cql.yl # parse again but ignoring all precedences
+1291 parsing conflicts.
+Parser statistics:
+  terminal symbols...................   246
+  non-terminal symbols...............   234
+  total symbols......................   480
+  rules..............................   695
+  states.............................   769
+  conflicts..........................  1291
+  conflicts S/R......................  1291
+  conflicts R/R......................     0
+  action table entries...............  5145
+  lookahead table entries............  5145
+  total table size (bytes)........... 24492
+
+$>byacc-nb  cql.y
+
+$>byacc-nb -u cql.y # parse again but ignoring all precedences
+byacc-nb: 1291 shift/reduce conflicts.
+1291 conflicts
+263 terminal symbols
+235 non-terminal symbols
+498 total symbols
+698 rules
+1309 states
+
+$>mybison  cql.y
+
+$>mybison -z cql.y # parse again but ignoring all precedences
+cql.y: warning: 1291 shift/reduce conflicts [-Wconflicts-sr]
+cql.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
 ```
 
