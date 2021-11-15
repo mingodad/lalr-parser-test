@@ -235,3 +235,51 @@ cql.y: warning: 1291 shift/reduce conflicts [-Wconflicts-sr]
 cql.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
 ```
 
+## Testing zephir-lang grammar (https://github.com/zephir-lang/php-zephir-parser/blob/development/parser/zephir.lemon):
+```
+$>lemon-nb  -Y zephir.yl > zephir.y #convert lemon grammar to yacc grammar
+
+$>lemon-nb -s zephir.yl
+Parser statistics:
+  terminal symbols...................   135
+  non-terminal symbols...............   102
+  total symbols......................   237
+  rules..............................   491
+  states.............................   645
+  conflicts..........................     0
+  action table entries............... 15308
+  lookahead table entries............ 15369
+  total table size (bytes)........... 49231
+
+$>lemon-nb -s -u zephir.yl # parse again but ignoring all precedences
+1215 parsing conflicts.
+Parser statistics:
+  terminal symbols...................   135
+  non-terminal symbols...............   102
+  total symbols......................   237
+  rules..............................   491
+  states.............................   645
+  conflicts..........................  1215
+  conflicts S/R......................  1215
+  conflicts R/R......................     0
+  action table entries............... 15964
+  lookahead table entries............ 15977
+  total table size (bytes)........... 51151
+
+$>byacc-nb  zephir.y
+
+$>byacc-nb -u zephir.y # parse again but ignoring all precedences
+byacc-nb: 1215 shift/reduce conflicts.
+1215 conflicts
+136 terminal symbols
+103 non-terminal symbols
+239 total symbols
+494 rules
+1031 states
+
+$>mybison  zephir.y
+
+$>mybison -z zephir.y # parse again but ignoring all precedences
+zephir.y: warning: 1215 shift/reduce conflicts [-Wconflicts-sr]
+zephir.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
+```
