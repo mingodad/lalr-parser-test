@@ -1,5 +1,5 @@
 # lalr-parser-test
-Testing how different LALR(1) parsers detect grammar conflicts
+## Testing how different LALR(1) parsers detect grammar conflicts
 
 The `lemon` parser here have several modifications like:
 - Command line option to convert from lemon grammar to yacc grammar `-y           Print yacc grammar without actions.`
@@ -22,7 +22,7 @@ All of the above was made to make easier to compare how lemon/byacc/bison parse 
 Obs: On the examples showun bellow `lemon-nb` and `byacc-nb` stands for the lemon/byacc parser from this repository,
 `mybison` stands for bison-3.8.2 modified with an extra command line `-z, --noprec                     ignore all precedences`.
 
-Testing sqlite3 grammar:
+## Testing sqlite3 grammar:
 ```
 $>lemon-nb -Y sqlite3.yl > sqlite3.y #convert lemon grammar to yacc grammar
 
@@ -92,7 +92,7 @@ sqlite3.y: warning: 93 reduce/reduce conflicts [-Wconflicts-rr]
 sqlite3.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
 ```
 
-Testing cfront3 grammar (https://github.com/mingodad/cfront-3/blob/master/src/gram.y):
+## Testing cfront3 grammar (https://github.com/mingodad/cfront-3/blob/master/src/gram.y):
 ```
 $>byacc-nb -E -n cfront3.y # convert yacc grammar to lemon grammar, also generate naked yacc grammar
 byacc-nb: 21 shift/reduce conflicts, 3 reduce/reduce conflicts.
@@ -172,7 +172,7 @@ cfront3-naked.y:251.11-29: warning: rule useless in parser due to conflicts [-Wo
       |           ^~~~~~~~~~~~~~~~~~~
 ```
 
-Testing cql grammar (https://github.com/facebookincubator/CG-SQL/blob/main/sources/cql.y):
+## Testing cql grammar (https://github.com/facebookincubator/CG-SQL/blob/main/sources/cql.y):
 ```
 $>byacc-nb -E cql.y # convert yacc grammar to lemon grammar
 
