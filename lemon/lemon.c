@@ -439,6 +439,7 @@ struct lemon {
   char *argv0;             /* Name of the program */
   int showPrecedenceConflict;
   int yaccPrec;            /*Use yacc rule precedence rightmost instead of leftmost*/
+  int ignorePrec;          /*Ignore all precedences*/
   struct action *actionfreelist;
   struct config *freelist;      /* List of free configurations */
   struct config *current;       /* Top of list of configurations */
@@ -847,11 +848,12 @@ int acttab_action_size(acttab *p){
 void FindRulePrecedences(struct lemon *xp)
 {
   struct rule *rp;
+  if(xp->ignorePrec) return;
   for(rp=xp->rule; rp; rp=rp->next){
     if( rp->precsym==0 ){
       int i, j;
       for(i=0; i<rp->nrhs; i++){
-        if(rp->precsym > 0 && !xp->yaccPrec) {
+        if(rp->precsym && !xp->yaccPrec) {
             break;
         }
         struct symbol *sp = rp->rhs[i];
@@ -1687,6 +1689,7 @@ int main(int argc, char **argv){
     {OPT_FLAG, "y", (char*)&rpyflag, "Print yacc grammar without actions."},
     {OPT_FLAG, "Y", (char*)&rpyflag2, "Print yacc grammar without actions with full precedences."},
     {OPT_FLAG, "z", (char*)&lem.yaccPrec, "Use yacc rule precedence"},
+    {OPT_FLAG, "u", (char*)&lem.ignorePrec, "Ignore all precedences"},
     {OPT_FSTR, "I", 0, "Ignored.  (Placeholder for '-I' compiler options.)"},
     {OPT_FLAG, "m", (char*)&mhflag, "Output a makeheaders compatible file."},
     {OPT_FLAG, "l", (char*)&nolinenosflag, "Do not print #line statements."},
@@ -2370,7 +2373,8 @@ static void parseonetoken(struct lemon *lem, struct pstate *psp)
           "to follow the previous rule.");
         psp->errorcnt++;
       }else{
-        psp->prevrule->precsym = Symbol_new(lem, x);
+        if(!psp->gp->ignorePrec)
+            psp->prevrule->precsym = Symbol_new(lem, x);
       }
       psp->state = PRECEDENCE_MARK_2;
       break;
@@ -2612,6 +2616,10 @@ static void parseonetoken(struct lemon *lem, struct pstate *psp)
           psp->state = WAITING_FOR_WILDCARD_ID;
         }else if( strcmp(x,"token_class")==0 ){
           psp->state = WAITING_FOR_CLASS_ID;
+        }else if( strcmp(x,"yacc_prec")==0 ){
+          psp->gp->yaccPrec = 1;
+          psp->insertLineMacro = 0;
+          psp->state = WAITING_FOR_DECL_OR_RULE;
         }else{
           ErrorMsg(psp->filename,psp->tokenlineno,
             "Unknown declaration keyword: \"%%%s\".",x);
@@ -2667,6 +2675,7 @@ static void parseonetoken(struct lemon *lem, struct pstate *psp)
         psp->state = WAITING_FOR_DECL_OR_RULE;
       }else if( ISUPPER(x[0]) ){
         struct symbol *sp;
+        if(psp->gp->ignorePrec) break;
         sp = Symbol_new(lem, x);
         if( sp->prec>=0 ){
           ErrorMsg(psp->filename,psp->tokenlineno,
