@@ -340,6 +340,12 @@ total_conflicts(void)
 		RRexpect, PLURAL(RRexpect));
 	exit_code = EXIT_FAILURE;
     }
+    fprintf(stderr, "%d conflicts\n", SRtotal+RRtotal);
+    fprintf(stderr, "%d terminal symbols\n", ntokens);
+    fprintf(stderr, "%d non-terminal symbols\n", nvars);
+    fprintf(stderr, "%d total symbols\n", nsyms);
+    fprintf(stderr, "%d rules\n", nrules);
+    fprintf(stderr, "%d states\n", nstates);
 }
 
 static int

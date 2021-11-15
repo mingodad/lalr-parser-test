@@ -1630,7 +1630,7 @@ declare_tokens(int assoc)
 	    bp->tag = tag;
 	}
 
-	if (assoc != TOKEN)
+	if (assoc != TOKEN && !ignore_prec_flag)
 	{
 	    if (bp->prec && prec != bp->prec)
 		reprec_warning(bp->name);
@@ -3413,9 +3413,11 @@ mark_symbol(void)
     if (rprec[nrules] != UNDEFINED && bp->prec != rprec[nrules])
 	prec_redeclared();
 
-    rprec[nrules] = bp->prec;
-    rassoc[nrules] = bp->assoc;
-    rprec_bucket[nrules] = bp;
+    if(!ignore_prec_flag) {
+        rprec[nrules] = bp->prec;
+        rassoc[nrules] = bp->assoc;
+        rprec_bucket[nrules] = bp;
+    }
     return (0);
 }
 
@@ -4008,7 +4010,7 @@ print_grammar_lemon(void)
             fprintf(f, " .\n");
         }
     }
-    fprintf(f, "\n%%start_symbol %s\n", goal->name);
+    fprintf(f, "\n%%start_symbol %s\n", get_lemon_token_name(&buf, goal->name));
 
     k = 1;
     for (i = START_RULE_IDX; i < nrules; ++i)

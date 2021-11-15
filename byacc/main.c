@@ -45,6 +45,7 @@ char vflag;
 char ebnf_flag;
 char lemon_flag;
 char lemon_prec_flag;
+char ignore_prec_flag;
 char naked_flag;
 
 const char *symbol_prefix;
@@ -281,6 +282,7 @@ usage(void)
 	{ "  -t                    add debugging support" },
 	{ "  -v                    write description (y.output)" },
 	{ "  -V                    show version information and exit" },
+	{ "  -u                    ignore precedences" },
 	{ "  -z                    use leftmost token for rule precedence" },
     };
     /* *INDENT-ON* */
@@ -392,6 +394,10 @@ setflag(int ch)
 	 * yacc compatible. */
 	break;
 
+    case 'u':
+        ignore_prec_flag = 1;
+	break;
+
     case 'z':
         lemon_prec_flag = 1;
 	break;
@@ -457,7 +463,7 @@ getargs(int argc, char *argv[])
     if (argc > 0)
 	myname = argv[0];
 
-    while ((ch = getopt(argc, argv, "Bb:dEeghH:ilLno:Pp:rstVvyz")) != -1)
+    while ((ch = getopt(argc, argv, "Bb:dEeghH:ilLno:Pp:rstVvyuz")) != -1)
     {
 	switch (ch)
 	{

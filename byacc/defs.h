@@ -305,6 +305,7 @@ extern char vflag;
 extern char ebnf_flag;
 extern char lemon_flag;
 extern char lemon_prec_flag;
+extern char ignore_prec_flag;
 extern char naked_flag;
 extern const char *symbol_prefix;
 
