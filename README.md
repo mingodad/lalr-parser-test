@@ -283,3 +283,99 @@ $>mybison -z zephir.y # parse again but ignoring all precedences
 zephir.y: warning: 1215 shift/reduce conflicts [-Wconflicts-sr]
 zephir.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
 ```
+## Testing postgresql-13.3 grammar:
+This grammar needs some manual fixes due to how terminals/non-terminals are named and here is a patch file for that:
+```
+--- y.yl	2021-11-15 14:53:07.793688510 +0100
++++ postgresql-13.3-naked.yl	2021-11-15 14:49:42.828814479 +0100
+@@ -2936,7 +2936,7 @@
+ simpleTypename ::= genericType .
+ simpleTypename ::= numeric .
+ simpleTypename ::= bit .
+-simpleTypename ::= character .
++simpleTypename ::= xcharacter .
+ simpleTypename ::= constDatetime .
+ simpleTypename ::= constInterval opt_interval .
+ simpleTypename ::= constInterval T_K_40 iconst T_K_41 .
+@@ -2977,8 +2977,8 @@
+
+ bitWithoutLength ::= BIT opt_varying .
+
+-character ::= characterWithLength .
+-character ::= characterWithoutLength .
++xcharacter ::= characterWithLength .
++xcharacter ::= characterWithoutLength .
+
+ constCharacter ::= characterWithLength .
+ constCharacter ::= characterWithoutLength .
+
+```
+
+```
+$>byacc-nb -n postgresql-13.3.y # convert yacc grammar to naked yacc grammar
+
+$>mv y.yn postgresql-13.3-naked.y # rename converted naked yacc grammar
+
+$>byacc-nb -E postgresql-13.3-naked.y # convert yacc grammar to lemon grammar
+
+$>patch y.yl < postgresql-13.3.yl.patch # manual fixes
+patching file y.yl
+
+$>mv y.yl postgresql-13.3-naked.yl # rename converted lemon grammar
+
+$>lemon-nb -s postgresql-13.3-naked.yl
+Parser statistics:
+  terminal symbols...................   490
+  non-terminal symbols...............   672
+  total symbols......................  1162
+  rules..............................  2759
+  states.............................  3305
+  conflicts..........................     0
+  action table entries............... 112778
+  lookahead table entries............ 112791
+  total table size (bytes)........... 479372
+
+$>lemon-nb -s -z postgresql-13.3-naked.yl #parse using yacc rule precedences
+Parser statistics:
+  terminal symbols...................   490
+  non-terminal symbols...............   672
+  total symbols......................  1162
+  rules..............................  2759
+  states.............................  3305
+  conflicts..........................     0
+  action table entries............... 112778
+  lookahead table entries............ 112791
+  total table size (bytes)........... 479372
+
+$>lemon-nb -s -u postgresql-13.3-naked.yl # parse again but ignoring all precedences
+1482 parsing conflicts.
+Parser statistics:
+  terminal symbols...................   490
+  non-terminal symbols...............   672
+  total symbols......................  1162
+  rules..............................  2759
+  states.............................  3306
+  conflicts..........................  1482
+  conflicts S/R......................  1482
+  conflicts R/R......................     0
+  action table entries............... 110799
+  lookahead table entries............ 110817
+  total table size (bytes)........... 471472
+
+$>byacc-nb  postgresql-13.3-naked.y
+
+$>byacc-nb -u postgresql-13.3-naked.y # parse again but ignoring all precedences
+byacc-nb: 1482 shift/reduce conflicts.
+1482 conflicts
+491 terminal symbols
+673 non-terminal symbols
+1164 total symbols
+2762 rules
+5557 states
+
+$>mybison  postgresql-13.3-naked.y
+
+$>mybison -z postgresql-13.3-naked.y # parse again but ignoring all precedences
+postgresql-13.3-naked.y: warning: 1482 shift/reduce conflicts [-Wconflicts-sr]
+postgresql-13.3-naked.y: note: rerun with option '-Wcounterexamples' to generate conflict counterexamples
+```
