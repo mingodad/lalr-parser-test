@@ -459,6 +459,7 @@ keywords[] = {
     { "binary",      NONASSOC },
     { "code",        XCODE },
     { "debug",       NONPOSIX_DEBUG },
+    { "define",      SKIP_DEFINE },
 #if defined(YYBTYACC)
     { "destructor",  DESTRUCTOR },
 #endif
@@ -1903,6 +1904,10 @@ read_declarations(void)
 	case POSIX_YACC:
 	    /* noop for bison compatibility. byacc is already designed to be posix
 	     * yacc compatible. */
+	    break;
+
+	case SKIP_DEFINE:
+	    get_line();
 	    break;
 	}
     }
@@ -3933,14 +3938,27 @@ static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
     if(tkname[0] == '\'') {
         if(tkname[2] == '\'')
             snprintf(*buf, sizeof(char64_t), "T_K_%d", tkname[1]);
-        else
+        else if(tkname[3] == '\'') {
+            int ch;
+            switch(tkname[2]) {
+                case 'n': ch = '\n'; break;
+                case 't': ch = '\t'; break;
+                case 'f': ch = '\f'; break;
+                case 'r': ch = '\r'; break;
+                case 'v': ch = '\v'; break;
+                case '\\': ch = '\\'; break;
+                default:
+                    ch = -1;
+            }
+            snprintf(*buf, sizeof(char64_t), "T_K_%d", ch);
+        } else
             snprintf(*buf, sizeof(char64_t), "T_K_%*s", (int)strlen(tkname)-2, tkname+1);            
     }
     else if(tkname[0] == '.') {
             snprintf(*buf, sizeof(char64_t), "x%s", tkname);
             (*buf)[1] = '_';
     }
-    else if(islower(tkname[1])) {
+    else if(islower(tkname[0])) {
             snprintf(*buf, sizeof(char64_t), "%s", tkname);
             (*buf)[0] = toupper(tkname[0]);
     }

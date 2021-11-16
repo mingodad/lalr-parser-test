@@ -125,6 +125,7 @@ typedef enum
     ,NONPOSIX_DEBUG
 
     /* other bison "extensions", some useful */
+    ,SKIP_DEFINE
     ,ERROR_VERBOSE
     ,EXPECT
     ,EXPECT_RR
