@@ -3407,7 +3407,7 @@ void Reprint(struct lemon *lemp)
   int i, j, idxRule, skip;
   Reprint_token_numbers(lemp);
   Reprint_tokens(lemp, " .");
-  printf("\n%%start_symbol %s\n\n", lemp->startRule->lhs->name);
+  printf("\n%%start_symbol %s\n\n", lemp->start);
 
   for(rp=lemp->rule, prev_rp=NULL; rp; prev_rp=rp, rp=rp->next){
     if(prev_rp && strcmp(prev_rp->lhs->name, rp->lhs->name))
