@@ -3994,6 +3994,28 @@ static const char *get_lemon_rule_name(char64_t *buf, const char *tkname)
 }
 
 static void
+print_symbol_prec_assoc_commented(FILE *out, int prec, Value_t assoc)
+{
+    char assoc_chr;
+    switch(assoc) {
+        case LEFT: assoc_chr = 'L'; break;
+        case RIGHT: assoc_chr = 'R'; break;
+        case NONASSOC: assoc_chr = 'N'; break;
+        default:
+            assoc_chr = 'U';
+    }
+    fprintf(out," /*%d%c*/", prec, assoc_chr);
+}
+
+static void
+print_symbol_prec_commented(FILE *out, Value_t sym)
+{
+    if(symbol_prec[sym]) {
+        print_symbol_prec_assoc_commented(out, symbol_prec[sym], symbol_assoc[sym]);
+    }
+}
+
+static void
 print_grammar_lemon(void)
 {
     int i, k;
@@ -4075,8 +4097,10 @@ print_grammar_lemon(void)
                 sym_name = symbol_name[symbol];
                 if(!skip_rule && sym_name[0] != '$') {
                     bucket *bp = lookup(sym_name);
-                    if(bp->class == TERM)
+                    if(bp->class == TERM) {
                         fprintf(f, " %s", get_lemon_token_name(&buf, sym_name));
+                        print_symbol_prec_commented(f, symbol);
+                    }
                     else
                         fprintf(f, " %s", get_lemon_rule_name(&buf, sym_name));
                 }
@@ -4087,7 +4111,9 @@ print_grammar_lemon(void)
         if(!skip_rule) {
             bucket *prec_bucket = rprec_bucket[i];
             if(prec_bucket) {
-                fprintf(f, " . [%s]\n", get_lemon_token_name(&buf, prec_bucket->name));
+                fprintf(f, " . [%s]", get_lemon_token_name(&buf, prec_bucket->name));
+                print_symbol_prec_assoc_commented(f, prec_bucket->prec, prec_bucket->assoc);
+                fprintf(f, "\n");
             }
             else fprintf(f, " .\n");
         }
@@ -4181,18 +4207,18 @@ print_grammar_naked(void)
                 sym_name = symbol_name[symbol];
                 if(!skip_rule && sym_name[0] != '$') {
                     fprintf(f, " %s", sym_name);
+                    print_symbol_prec_commented(f, symbol);
                 }
                 ++k;
             }
         }
 	++k;
         if(!skip_rule) {
-            if(rprec[i]) {
-                fprintf(f, " /*%d:%d*/", rprec[i], rassoc[i]);
-            }
             bucket *prec_bucket = rprec_bucket[i];
             if(prec_bucket) {
-                fprintf(f, " %%prec %s\n", prec_bucket->name);
+                fprintf(f, " %%prec %s", prec_bucket->name);
+                print_symbol_prec_assoc_commented(f, prec_bucket->prec, prec_bucket->assoc);
+                fprintf(f, "\n");
             }
             else fprintf(f, "\n");
         }

@@ -3298,26 +3298,45 @@ PRIVATE FILE *file_open(
   return fp;
 }
 
+static void
+print_symbol_prec_commented(FILE *out, struct symbol *sym)
+{
+    if(sym->prec >= 0 && sym->type==TERMINAL) {
+        char assoc_chr;
+        switch(sym->assoc) {
+            case LEFT: assoc_chr = 'L'; break;
+            case RIGHT: assoc_chr = 'R'; break;
+            case NONE: assoc_chr = 'N'; break;
+            case PRECEDENCE: assoc_chr = 'P'; break;
+            case UNK: assoc_chr = 'U'; break;
+        }
+        fprintf(out," /*%d%c*/", sym->prec, assoc_chr);
+    }
+}
+
 /* Print the text of a rule
 */
-void rule_print(FILE *out, struct rule *rp){
+void rule_print(FILE *out, struct rule *rp, int with_comments){
   int i, j;
   fprintf(out, "%s", rp->lhs->name);
   /*    if( rp->lhsalias ) fprintf(out,"(%s)",rp->lhsalias); */
   fprintf(out," ::=");
   if(rp->nrhs == 0) {
-      //fprintf(out," /*empty*/"); breaks sqlite3.c
+      if(with_comments) fprintf(out," /*empty*/");
   }
   else {
     for(i=0; i<rp->nrhs; i++){
       struct symbol *sp = rp->rhs[i];
       if( sp->type==MULTITERMINAL ){
         fprintf(out," %s", sp->subsym[0]->name);
+        if(with_comments) print_symbol_prec_commented(out, sp->subsym[0]);
         for(j=1; j<sp->nsubsym; j++){
           fprintf(out,"|%s", sp->subsym[j]->name);
+          if(with_comments) print_symbol_prec_commented(out, sp->subsym[j]);
         }
       }else{
         fprintf(out," %s", sp->name);
+        if(with_comments) print_symbol_prec_commented(out, sp);
       }
       /* if( rp->rhsalias[i] ) fprintf(out,"(%s)",rp->rhsalias[i]); */
     }
@@ -3412,9 +3431,12 @@ void Reprint(struct lemon *lemp)
   for(rp=lemp->rule, prev_rp=NULL; rp; prev_rp=rp, rp=rp->next){
     if(prev_rp && strcmp(prev_rp->lhs->name, rp->lhs->name))
           printf("\n");
-    rule_print(stdout, rp);
+    rule_print(stdout, rp, 1);
     printf(" .");
-    if( rp->precsym ) printf(" [%s]",rp->precsym->name);
+    if( rp->precsym ) {
+        printf(" [%s]",rp->precsym->name);
+        print_symbol_prec_commented(stdout, rp->precsym);
+    }
     /* if( rp->code ) printf("\n    %s",rp->code); */
     printf("\n");
   }
@@ -3430,7 +3452,7 @@ void Reprint(struct lemon *lemp)
     if(i > 0 && strcmp(array[i]->lhs->name, array[i-1]->lhs->name))
           printf("\n");
     struct rule *rp = array[i];
-    rule_print(stdout, rp);
+    rule_print(stdout, rp, 0);
     printf(" .");
     if( rp->precsym ) printf(" [%s]",rp->precsym->name);
     /* if( rp->code ) printf("\n    %s",rp->code); */
@@ -3440,7 +3462,7 @@ void Reprint(struct lemon *lemp)
 #endif
 #if 0
   for(rp=lemp->rule; rp; rp=rp->next){
-    rule_print(stdout, rp);
+    rule_print(stdout, rp, 0);
     printf(".");
     if( rp->precsym ) printf(" [%s]",rp->precsym->name);
     /* if( rp->code ) printf("\n    %s",rp->code); */
@@ -3465,8 +3487,10 @@ void rule_print_yacc0(FILE *out, struct rule *rp, int mt_idx){
       if( sp->type==MULTITERMINAL ){
         //fprintf(out," m_t_%d", sp->id);
         fprintf(out," %s", sp->subsym[mt_idx]->name);
+        print_symbol_prec_commented(out, sp->subsym[mt_idx]);
       }else{
         fprintf(out," %s", sp->name);
+        print_symbol_prec_commented(out, sp);
       }
       /* if( rp->rhsalias[i] ) fprintf(out,"(%s)",rp->rhsalias[i]); */
     }
@@ -3480,8 +3504,10 @@ void rule_print_yacc(FILE *out, struct rule *rp){
       if( sp->type==MULTITERMINAL ){
         for(j=0; j<sp->nsubsym; j++){
           rule_print_yacc0(out, rp, j);
-          if( rp->precsym )
+          if( rp->precsym ) {
               fprintf(out, " %%prec %s",rp->precsym->name);
+              print_symbol_prec_commented(out, rp->precsym);
+          }
           fprintf(out, " ;\n");
         }
         return;
@@ -3489,8 +3515,10 @@ void rule_print_yacc(FILE *out, struct rule *rp){
       /* if( rp->rhsalias[i] ) fprintf(out,"(%s)",rp->rhsalias[i]); */
     }
     rule_print_yacc0(out, rp, -1);
-    if( rp->precsym )
+    if( rp->precsym ) {
         fprintf(out, " %%prec %s",rp->precsym->name);
+        print_symbol_prec_commented(out, rp->precsym);
+    }
     fprintf(out, " ;\n");
 }
 
@@ -3750,7 +3778,7 @@ void ReportOutput(struct lemon *lemp)
   fprintf(fp, "Rules:\n");
   for(rp=lemp->rule; rp; rp=rp->next){
     fprintf(fp, "%4d: ", rp->iRule);
-    rule_print(fp, rp);
+    rule_print(fp, rp, 0);
     fprintf(fp,".");
     if( rp->precsym ){
       fprintf(fp," [%s precedence=%d]",
@@ -5109,13 +5137,13 @@ void ReportTable(
   */
   for(i=0, rp=lemp->rule; rp; rp=rp->next, i++){
     fprintf(out,"  %4d,  /* (%d) ", rp->lhs->index, i);
-     rule_print(out, rp);
+     rule_print(out, rp, 0);
     fprintf(out," */\n"); lineno++;
   }
   tplt_xfer(lemp->name,in,out,&lineno);
   for(i=0, rp=lemp->rule; rp; rp=rp->next, i++){
     fprintf(out,"  %3d,  /* (%d) ", -rp->nrhs, i);
-    rule_print(out, rp);
+    rule_print(out, rp, 0);
     fprintf(out," */\n"); lineno++;
   }
   tplt_xfer(lemp->name,in,out,&lineno);
