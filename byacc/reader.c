@@ -3931,16 +3931,151 @@ print_grammar_ebnf(void)
     }
 }
 
+static const char * ascii_names_st[] = {
+/*0*/ "0NUL" /*Null char*/,
+/*1*/ "SOH" /*Start of Heading*/,
+/*2*/ "STX" /*Start of Text*/,
+/*3*/ "ETX" /*End of Text*/,
+/*4*/ "EOT" /*End of Transmission*/,
+/*5*/ "ENQ" /*Enquiry*/,
+/*6*/ "ACK" /*Acknowledgment*/,
+/*7*/ "BEL" /*Bell*/,
+/*8*/ "BS" /*Back Space*/,
+/*9*/ "HT" /*Horizontal Tab*/,
+/*10*/ "LF" /*Line Feed*/,
+/*11*/ "VT" /*Vertical Tab*/,
+/*12*/ "FF" /*Form Feed*/,
+/*13*/ "CR" /*Carriage Return*/,
+/*14*/ "SO" /*Shift Out / X-On*/,
+/*15*/ "SI" /*Shift In / X-Off*/,
+/*16*/ "DLE" /*Data Line Escape*/,
+/*17*/ "DC1" /*Device Control 1 (oft. XON)*/,
+/*18*/ "DC2" /*Device Control 2*/,
+/*19*/ "DC3" /*Device Control 3 (oft. XOFF)*/,
+/*20*/ "DC4" /*Device Control 4*/,
+/*21*/ "NAK" /*Negative Acknowledgement*/,
+/*22*/ "SYN" /*Synchronous Idle*/,
+/*23*/ "ETB" /*End of Transmit Block*/,
+/*24*/ "CAN" /*Cancel*/,
+/*25*/ "EM" /*End of Medium*/,
+/*26*/ "SUB" /*Substitute*/,
+/*27*/ "ESC" /*Escape*/,
+/*28*/ "FS" /*File Separator*/,
+/*29*/ "GS" /*Group Separator*/,
+/*30*/ "RS" /*Record Separator*/,
+/*31*/ "US" /*Unit Separator*/,
+/*32*/ "32SPACE" /*Space*/,
+/*33*/ "EXCLA" /*! Exclamation mark*/,
+/*34*/ "DQUOTE" /*Double quotes (or speech marks)*/,
+/*35*/ "POUND" /*# Number*/,
+/*36*/ "DOLLAR" /*$ Dollar*/,
+/*37*/ "PERC" /*% Per cent sign*/,
+/*38*/ "AMPER" /*&	Ampersand*/,
+/*39*/ "SQUOTE" /* ' Single quote*/,
+/*40*/ "LP" /*( Open parenthesis (or open bracket)*/,
+/*41*/ "RP" /*) Close parenthesis (or close bracket)*/,
+/*42*/ "ASTERISK" /** Asterisk*/,
+/*43*/ "PLUS" /*+ Plus*/,
+/*44*/ "COMMA" /*, Comma*/,
+/*45*/ "HYPHEN" /*- Hyphen*/,
+/*46*/ "PERIOD" /*. Period, dot or full stop*/,
+/*47*/ "SLASH" /*/ Slash or divide*/,
+/*48*/ "0" /*Zero*/,
+/*49*/ "1" /*One*/,
+/*50*/ "2" /*Two*/,
+/*51*/ "3" /*Three*/,
+/*52*/ "4" /*Four*/,
+/*53*/ "5" /*Five*/,
+/*54*/ "6" /*Six*/,
+/*55*/ "7" /*Seven*/,
+/*56*/ "8" /*Eight*/,
+/*57*/ "9" /*Nine*/,
+/*58*/ "COLON" /*: Colon*/,
+/*59*/ "SEMICOL" /*; Semicolon*/,
+/*60*/ "LT" /*< Less than (or open angled bracket)*/,
+/*61*/ "EQ" /*= Equals*/,
+/*62*/ "GT" /*>Greater than (or close angled bracket)*/,
+/*63*/ "QMARK" /*? Question mark*/,
+/*64*/ "AT" /*@ At symbol*/,
+/*65*/ "A" /*Uppercase A*/,
+/*66*/ "B" /*Uppercase B*/,
+/*67*/ "C" /*Uppercase C*/,
+/*68*/ "D" /*Uppercase D*/,
+/*69*/ "E" /*Uppercase E*/,
+/*70*/ "F" /*Uppercase F*/,
+/*71*/ "G" /*Uppercase G*/,
+/*72*/ "H" /*Uppercase H*/,
+/*73*/ "I" /*Uppercase I*/,
+/*74*/ "J" /*Uppercase J*/,
+/*75*/ "K" /*Uppercase K*/,
+/*76*/ "L" /*Uppercase L*/,
+/*77*/ "M" /*Uppercase M*/,
+/*78*/ "N" /*Uppercase N*/,
+/*79*/ "O" /*Uppercase O*/,
+/*80*/ "P" /*Uppercase P*/,
+/*81*/ "Q" /*Uppercase Q*/,
+/*82*/ "R" /*Uppercase R*/,
+/*83*/ "S" /*Uppercase S*/,
+/*84*/ "T" /*Uppercase T*/,
+/*85*/ "U" /*Uppercase U*/,
+/*86*/ "V" /*Uppercase V*/,
+/*87*/ "W" /*Uppercase W*/,
+/*88*/ "X" /*Uppercase X*/,
+/*89*/ "Y" /*Uppercase Y*/,
+/*90*/ "Z" /*Uppercase Z*/,
+/*91*/ "LBRACKET" /*[ Opening bracket*/,
+/*92*/ "BACKSLASH" /*/ Backslash*/,
+/*93*/ "RBRACKET" /*] Closing bracket*/,
+/*94*/ "CARET" /*^Caret - circumflex*/,
+/*95*/ "UNDERSCORE" /*_ Underscore*/,
+/*96*/ "GRAVE" /*` Grave accent*/,
+/*97*/ "a" /*Lowercase a*/,
+/*98*/ "b" /*Lowercase b*/,
+/*99*/ "c" /*Lowercase c*/,
+/*100*/ "d" /*Lowercase d*/,
+/*101*/ "e" /*Lowercase e*/,
+/*102*/ "f" /*Lowercase f*/,
+/*103*/ "g" /*Lowercase g*/,
+/*104*/ "h" /*Lowercase h*/,
+/*105*/ "i" /*Lowercase i*/,
+/*106*/ "j" /*Lowercase j*/,
+/*107*/ "k" /*Lowercase k*/,
+/*108*/ "l" /*Lowercase l*/,
+/*109*/ "m" /*Lowercase m*/,
+/*110*/ "n" /*Lowercase n*/,
+/*111*/ "o" /*Lowercase o*/,
+/*112*/ "p" /*Lowercase p*/,
+/*113*/ "q" /*Lowercase q*/,
+/*114*/ "r" /*Lowercase r*/,
+/*115*/ "s" /*Lowercase s*/,
+/*116*/ "t" /*Lowercase t*/,
+/*117*/ "u" /*Lowercase u*/,
+/*118*/ "v" /*Lowercase v*/,
+/*119*/ "w" /*Lowercase w*/,
+/*120*/ "x" /*Lowercase x*/,
+/*121*/ "y" /*Lowercase y*/,
+/*122*/ "z" /*Lowercase z*/,
+/*123*/ "LBRACE" /*{ Opening brace*/,
+/*124*/ "VERTBAR" /*| Vertical bar*/,
+/*125*/ "RBRACE" /*} Closing brace*/,
+/*126*/ "TILDE" /*~ Equivalency sign - tilde*/,
+/*127*/ "127" /*Delete*/
+};
+
 typedef char char64_t[64];
 
 static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
 {
+    int ch;
     if(tkname[0] == '\'') {
-        if(tkname[2] == '\'')
-            snprintf(*buf, sizeof(char64_t), "T_K_%d", tkname[1]);
+        if(tkname[2] == '\'') {
+            ch = tkname[1];
+            if(ch < 127) snprintf(*buf, sizeof(char64_t), "Tk_%s", ascii_names_st[ch]);
+            else snprintf(*buf, sizeof(char64_t), "Tk_%d", ch);
+        }            
         else if(tkname[3] == '\'') {
-            int ch;
-            switch(tkname[2]) {
+            ch = tkname[2];
+            switch(ch) {
                 case 'n': ch = '\n'; break;
                 case 't': ch = '\t'; break;
                 case 'f': ch = '\f'; break;
@@ -3950,12 +4085,13 @@ static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
                 default:
                     ch = -1;
             }
-            snprintf(*buf, sizeof(char64_t), "T_K_%d", ch);
+            if(ch < 127) snprintf(*buf, sizeof(char64_t), "Tk_%s", ascii_names_st[ch]);
+            else snprintf(*buf, sizeof(char64_t), "Tk_%d", ch);
         } else
-            snprintf(*buf, sizeof(char64_t), "T_K_%*s", (int)strlen(tkname)-2, tkname+1);            
+            snprintf(*buf, sizeof(char64_t), "Tk_%*s", (int)strlen(tkname)-2, tkname+1);            
     }
     else if(tkname[0] == '"') {
-            snprintf(*buf, sizeof(char64_t), "T_K_%s", tkname+1);
+            snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname+1);
             (*buf)[strlen(*buf)-1] = '\0';
     }
     else if(tkname[0] == '.') {
