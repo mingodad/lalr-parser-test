@@ -3954,6 +3954,10 @@ static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
         } else
             snprintf(*buf, sizeof(char64_t), "T_K_%*s", (int)strlen(tkname)-2, tkname+1);            
     }
+    else if(tkname[0] == '"') {
+            snprintf(*buf, sizeof(char64_t), "T_K_%s", tkname+1);
+            (*buf)[strlen(*buf)-1] = '\0';
+    }
     else if(tkname[0] == '.') {
             snprintf(*buf, sizeof(char64_t), "x%s", tkname);
             (*buf)[1] = '_';
