@@ -1310,7 +1310,7 @@ static int resolve_conflict(
     }else if( spx->prec==spy->prec && spx->assoc==LEFT ){  /* to break tie */
       apx->type = SH_RESOLVED;
     }else{
-      assert( spx->prec==spy->prec && spx->assoc==NONE );
+      assert( spx->prec==spy->prec && (spx->assoc==NONE || spx->assoc==PRECEDENCE));
       apx->type = ERROR;
     }
   }else if( apx->type==REDUCE && apy->type==REDUCE ){
@@ -2686,7 +2686,7 @@ static void parseonetoken(struct lemon *lem, struct pstate *psp)
           psp->errorcnt++;
         }else{
           sp->prec = psp->preccounter;
-          if(psp->declassoc != PRECEDENCE) sp->assoc = psp->declassoc;
+          sp->assoc = psp->declassoc;
         }
       }else{
         ErrorMsg(psp->filename,psp->tokenlineno,
@@ -3397,6 +3397,9 @@ void Reprint_tokens(struct lemon *lemp, const char *terminator)
                   case NONE:
                       sassoc = "nonassoc";
                       break;
+                  case PRECEDENCE:
+                      sassoc = "precedence";
+                      break;
               }
               printf("%%%s /*%d*/", sassoc, j);
           }
@@ -3657,8 +3660,8 @@ int PrintAction(
       break;
     case SRCONFLICT:
     case RRCONFLICT:
-      fprintf(fp,"%*s reduce       %-7d ** Parsing conflict **",
-        indent,ap->sp->name,ap->x.rp->iRule);
+      fprintf(fp,"%*s reduce       %-7d(%s) ** Parsing conflict **",
+        indent,ap->sp->name,ap->x.rp->iRule, ap->x.rp->lhs->name);
       break;
     case SSCONFLICT:
       fprintf(fp,"%*s shift        %-7d ** Parsing conflict **",
@@ -3674,8 +3677,8 @@ int PrintAction(
       break;
     case RD_RESOLVED:
       if( lemp->showPrecedenceConflict ){
-        fprintf(fp,"%*s reduce %-7d -- dropped by precedence",
-                indent,ap->sp->name,ap->x.rp->iRule);
+        fprintf(fp,"%*s reduce %-7d (%s) -- dropped by precedence",
+                indent,ap->sp->name,ap->x.rp->iRule, ap->x.rp->lhs->name);
       }else{
         result = 0;
       }
