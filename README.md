@@ -10,11 +10,18 @@ The `lemon` parser here have several modifications like:
 - Enhanced command line option to output a naked lemon grammar `-g           Print grammar without actions.`
 
 The byacc parser (from https://invisible-island.net/byacc/byacc.html) here have several modifications like:
+- Command line option to print naked yacc `-n                            generate naked grammar`
 - Command line option to convert from yacc grammar to lemon grammar `-E                    write lemon grammar`
 - Command line option to convert from yacc grammar to EBNF grammar (understood by https://www.bottlecaps.de/rr/ui) `-e                    write ebnf grammar`
 - Command line option to ignore all precedences `-u                    ignore precedences`
 - Command line option to use lemon rule precedences `-z                    use leftmost token for rule precedence`
 - Add code to accept/skip bison styles alias for non-terminals `rule[alias]` 
+
+The bison-3.8.2 parser here (only the diff) have several modifications like:
+- Command line option to print naked yacc `-n                            generate naked grammar`
+- Command line option to convert from yacc grammar to lemon grammar `-N                            generate lemon grammar`
+- Command line option to convert from yacc grammar to EBNF grammar (understood by https://www.bottlecaps.de/rr/ui) `-e                    write ebnf grammar`
+- Command line option to ignore all precedences `-z                    ignore precedences`
 
 
 All of the above was made to make easier to compare how lemon/byacc/bison parse LARL(1) grammars.
