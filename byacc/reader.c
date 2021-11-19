@@ -4098,13 +4098,12 @@ static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
             snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname+1);
             (*buf)[strlen(*buf)-1] = '\0';
     }
-    else if(tkname[0] == '.') {
-            snprintf(*buf, sizeof(char64_t), "x%s", tkname);
-            (*buf)[1] = '_';
+    else if(tkname[0] == '.' || tkname[0] == '_') {
+            snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname);
+            (*buf)[3] = '_';
     }
     else if(islower(tkname[0])) {
-            snprintf(*buf, sizeof(char64_t), "%s", tkname);
-            (*buf)[0] = toupper(tkname[0]);
+            snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname);
     }
     else
         snprintf(*buf, sizeof(char64_t), "%s", tkname);
@@ -4125,8 +4124,7 @@ static const char *get_lemon_rule_name(char64_t *buf, const char *tkname)
             snprintf(*buf, sizeof(char64_t), "z%s", tkname);
     }
     else if(isupper(tkname[0])) {
-            snprintf(*buf, sizeof(char64_t), "%s", tkname);
-            (*buf)[0] = tolower(tkname[0]);
+            snprintf(*buf, sizeof(char64_t), "l_%s", tkname);
     }
     else
         snprintf(*buf, sizeof(char64_t), "%s", tkname);

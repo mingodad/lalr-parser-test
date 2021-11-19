@@ -243,7 +243,7 @@ diff -u src/parse-gram.y src-dad/parse-gram.y
  ;
 diff -u src/reader.c src-dad/reader.c
 --- src/reader.c	2021-11-15 11:15:38.428233427 +0100
-+++ src-dad/reader.c	2021-11-19 13:39:10.934564160 +0100
++++ src-dad/reader.c	2021-11-19 14:59:25.543454658 +0100
 @@ -20,6 +20,7 @@
  
  #include <config.h>
@@ -261,7 +261,7 @@ diff -u src/reader.c src-dad/reader.c
  }
  
  /* Set %empty for the current rule. */
-@@ -816,6 +817,414 @@
+@@ -816,6 +817,412 @@
    return res->content.sym;
  }
  
@@ -523,13 +523,12 @@ diff -u src/reader.c src-dad/reader.c
 +            snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname+1);
 +            (*buf)[strlen(*buf)-1] = '\0';
 +    }
-+    else if(tkname[0] == '.') {
-+            snprintf(*buf, sizeof(char64_t), "x%s", tkname);
-+            (*buf)[1] = '_';
++    else if(tkname[0] == '.' || tkname[0] == '_') {
++            snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname);
++            (*buf)[3] = '_';
 +    }
 +    else if(islower(tkname[0])) {
-+            snprintf(*buf, sizeof(char64_t), "%s", tkname);
-+            (*buf)[0] = toupper(tkname[0]);
++            snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname);
 +    }
 +    else
 +        snprintf(*buf, sizeof(char64_t), "%s", tkname);
@@ -550,8 +549,7 @@ diff -u src/reader.c src-dad/reader.c
 +            snprintf(*buf, sizeof(char64_t), "z%s", tkname);
 +    }
 +    else if(isupper(tkname[0])) {
-+            snprintf(*buf, sizeof(char64_t), "%s", tkname);
-+            (*buf)[0] = tolower(tkname[0]);
++            snprintf(*buf, sizeof(char64_t), "l_%s", tkname);
 +    }
 +    else
 +        snprintf(*buf, sizeof(char64_t), "%s", tkname);
@@ -676,7 +674,7 @@ diff -u src/reader.c src-dad/reader.c
  
  /* Insert an initial rule, whose location is that of the first rule
     (not that of the start symbol):
-@@ -1000,6 +1409,10 @@
+@@ -1000,6 +1407,10 @@
    /* Convert the grammar into the format described in gram.h.  */
    packgram ();
  
