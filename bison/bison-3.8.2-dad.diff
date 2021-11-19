@@ -1,0 +1,689 @@
+diff -u src/getargs.c src-dad/getargs.c
+--- src/getargs.c	2021-11-15 11:15:38.424233021 +0100
++++ src-dad/getargs.c	2021-11-19 12:39:13.687338990 +0100
+@@ -38,6 +38,9 @@
+ #include "output.h"
+ #include "uniqstr.h"
+ 
++bool rrebnf_flag = false;
++bool naked_flag = false;
++bool lemon_flag = false;
+ bool header_flag = false;
+ bool graph_flag = false;
+ bool html_flag = false;
+@@ -432,11 +435,15 @@
+   -l, --no-lines                   don't generate '#line' directives\n\
+   -k, --token-table                include a table of token names\n\
+   -y, --yacc                       emulate POSIX Yacc\n\
++  -z, --noprec                     ignore all precedences\n\
+ "), stdout);
+       putc ('\n', stdout);
+ 
+       fputs (_("\
+ Output Files:\n\
++  -e                            generate RREBNF\n\
++  -n                            generate naked grammar\n\
++  -N                            generate lemon grammar\n\
+   -H, --header=[FILE]           also produce a header file\n\
+   -d                            likewise but cannot specify FILE (for POSIX Yacc)\n\
+   -r, --report=THINGS           also produce details on the automaton\n\
+@@ -564,6 +571,9 @@
+   "W::"
+   "b:"
+   "d"
++  "e"
++  "N"
++  "n"
+   "f::"
+   "g::"
+   "h"
+@@ -578,6 +588,7 @@
+   "v"
+   "x::"
+   "y"
++  "z"
+   ;
+ 
+ /* Values for long options that do not have single-letter equivalents.  */
+@@ -620,8 +631,12 @@
+   { "no-lines",       no_argument,         0, 'l' },
+   { "token-table",    no_argument,         0, 'k' },
+   { "yacc",           no_argument,         0, 'y' },
++  { "noprec",         no_argument,         0, 'z' },
+ 
+   /* Output Files. */
++  { "rrebnf",          optional_argument,   0,   'e' },
++  { "naked",           optional_argument,   0,   'n' },
++  { "lemon",           optional_argument,   0,   'N' },
+   { "header",          optional_argument,   0,   'H' },
+   { "defines",         optional_argument,   0,   'd' },
+   { "report",          required_argument,   0,   'r' },
+@@ -787,6 +802,18 @@
+         spec_file_prefix = optarg;
+         break;
+ 
++      case 'e':
++        rrebnf_flag = true;
++        break;
++
++      case 'N':
++        lemon_flag = true;
++        break;
++
++      case 'n':
++        naked_flag = true;
++        break;
++
+       case 'g':
+         graph_flag = true;
+         if (optarg)
+@@ -849,6 +876,10 @@
+         set_yacc (loc);
+         break;
+ 
++      case 'z':
++        ignore_precedences = true;
++        break;
++
+       case COLOR_OPTION:
+         /* Handled in getargs_colors. */
+         break;
+diff -u src/getargs.h src-dad/getargs.h
+--- src/getargs.h	2021-11-15 11:15:38.424233021 +0100
++++ src-dad/getargs.h	2021-11-19 12:36:40.157593702 +0100
+@@ -34,6 +34,9 @@
+ /* for -I */
+ extern char const *include;
+ 
++extern bool rrebnf_flag;                /* for -e */
++extern bool lemon_flag;                 /* for -N */
++extern bool naked_flag;                 /* for -n */
+ extern bool header_flag;                /* for -d/-H */
+ extern bool graph_flag;                 /* for -g */
+ extern bool html_flag;                  /* for --html */
+@@ -55,6 +58,8 @@
+ 
+ extern bool nondeterministic_parser;
+ 
++extern bool ignore_precedences;  /* for -z */
++
+ 
+ /* --language.  */
+ struct bison_language
+Only in src: .gitignore
+diff -u src/gram.c src-dad/gram.c
+--- src/gram.c	2021-11-15 11:15:38.424233021 +0100
++++ src-dad/gram.c	2021-11-16 16:21:34.372696739 +0100
+@@ -42,6 +42,8 @@
+ int nsyms = 0;
+ int ntokens = 1;
+ int nnterms = 0;
++bool ignore_precedences = 0;
++
+ 
+ symbol_number *token_translations = NULL;
+ 
+diff -u src/gram.h src-dad/gram.h
+--- src/gram.h	2021-11-15 11:15:38.424233021 +0100
++++ src-dad/gram.h	2021-11-16 17:00:22.864643639 +0100
+@@ -113,6 +113,9 @@
+ extern int nsyms;
+ extern int ntokens;
+ extern int nnterms;
++extern int current_prec;
++extern bool ignore_precedences;
++#define FIRST_USER_TOKEN 3
+ 
+ /* Elements of ritem. */
+ typedef int item_number;
+diff -u src/parse-gram.c src-dad/parse-gram.c
+--- src/parse-gram.c	2021-11-15 11:15:38.428233427 +0100
++++ src-dad/parse-gram.c	2021-11-16 17:00:23.216637785 +0100
+@@ -1,4 +1,4 @@
+-/* A Bison parser, made by GNU Bison 3.8.1.  */
++/* A Bison parser, made by GNU Bison 3.8.2.  */
+ 
+ /* Bison implementation for Yacc-like parsers in C
+ 
+@@ -46,10 +46,10 @@
+    USER NAME SPACE" below.  */
+ 
+ /* Identify Bison output, and Bison version.  */
+-#define YYBISON 30801
++#define YYBISON 30802
+ 
+ /* Bison version string.  */
+-#define YYBISON_VERSION "3.8.1"
++#define YYBISON_VERSION "3.8.2"
+ 
+ /* Skeleton name.  */
+ #define YYSKELETON_NAME "yacc.c"
+@@ -239,7 +239,7 @@
+      in that version while developping it.  */
+   static const char* api_version = "3.8";
+ 
+-  static int current_prec = 0;
++  int current_prec = 0;
+   static location current_lhs_loc;
+   static named_ref *current_lhs_named_ref;
+   static symbol *current_lhs_symbol;
+@@ -663,14 +663,14 @@
+      359,   360,   360,   361,   362,   363,   364,   365,   366,   367,
+      368,   372,   373,   382,   383,   387,   398,   402,   406,   414,
+      424,   425,   435,   436,   442,   455,   455,   460,   460,   465,
+-     465,   470,   480,   481,   482,   483,   488,   489,   493,   494,
+-     499,   500,   504,   505,   509,   510,   511,   524,   533,   537,
+-     541,   549,   550,   554,   567,   568,   573,   574,   575,   593,
+-     597,   601,   609,   611,   616,   623,   633,   637,   641,   649,
+-     655,   668,   669,   675,   676,   677,   684,   684,   692,   693,
+-     694,   699,   702,   704,   706,   708,   710,   712,   714,   716,
+-     718,   723,   724,   733,   757,   758,   759,   760,   772,   774,
+-     798,   803,   804,   809,   817,   818
++     465,   470,   482,   483,   484,   485,   490,   491,   495,   496,
++     501,   502,   506,   507,   511,   512,   513,   526,   535,   539,
++     543,   551,   552,   556,   569,   570,   575,   576,   577,   595,
++     599,   603,   611,   613,   618,   625,   635,   639,   643,   651,
++     657,   670,   671,   677,   678,   679,   686,   686,   694,   695,
++     696,   701,   704,   706,   708,   710,   712,   714,   716,   718,
++     720,   725,   726,   735,   759,   760,   761,   762,   774,   776,
++     800,   805,   806,   811,   819,   820
+ };
+ #endif
+ 
+@@ -2305,9 +2305,11 @@
+ 
+   case 51: /* symbol_declaration: precedence_declarator token_decls_for_prec  */
+     {
+-      ++current_prec;
+-      for (symbol_list *list = (yyvsp[0].token_decls_for_prec); list; list = list->next)
+-        symbol_precedence_set (list->content.sym, current_prec, (yyvsp[-1].precedence_declarator), (yylsp[-1]));
++      if(!ignore_precedences) {
++        ++current_prec;
++        for (symbol_list *list = (yyvsp[0].token_decls_for_prec); list; list = list->next)
++          symbol_precedence_set (list->content.sym, current_prec, (yyvsp[-1].precedence_declarator), (yylsp[-1]));
++      }
+       symbol_list_free ((yyvsp[0].token_decls_for_prec));
+     }
+     break;
+diff -u src/parse-gram.h src-dad/parse-gram.h
+--- src/parse-gram.h	2021-11-15 11:15:38.428233427 +0100
++++ src-dad/parse-gram.h	2021-11-15 10:38:57.446183516 +0100
+@@ -1,4 +1,4 @@
+-/* A Bison parser, made by GNU Bison 3.8.1.  */
++/* A Bison parser, made by GNU Bison 3.8.2.  */
+ 
+ /* Bison interface for Yacc-like parsers in C
+ 
+diff -u src/parse-gram.y src-dad/parse-gram.y
+--- src/parse-gram.y	2021-11-15 11:15:38.428233427 +0100
++++ src-dad/parse-gram.y	2021-11-16 16:51:31.005984720 +0100
+@@ -61,7 +61,7 @@
+      in that version while developping it.  */
+   static const char* api_version = "3.8";
+ 
+-  static int current_prec = 0;
++  int current_prec = 0;
+   static location current_lhs_loc;
+   static named_ref *current_lhs_named_ref;
+   static symbol *current_lhs_symbol;
+@@ -469,9 +469,11 @@
+     }
+ | precedence_declarator token_decls_for_prec[syms]
+     {
+-      ++current_prec;
+-      for (symbol_list *list = $syms; list; list = list->next)
+-        symbol_precedence_set (list->content.sym, current_prec, $1, @1);
++      if(!ignore_precedences) {
++        ++current_prec;
++        for (symbol_list *list = $syms; list; list = list->next)
++          symbol_precedence_set (list->content.sym, current_prec, $1, @1);
++      }
+       symbol_list_free ($syms);
+     }
+ ;
+diff -u src/reader.c src-dad/reader.c
+--- src/reader.c	2021-11-15 11:15:38.428233427 +0100
++++ src-dad/reader.c	2021-11-19 13:39:10.934564160 +0100
+@@ -20,6 +20,7 @@
+ 
+ #include <config.h>
+ #include "system.h"
++#include <ctype.h>
+ 
+ #include <quote.h>
+ #include <vasnprintf.h>
+@@ -531,7 +532,7 @@
+     duplicate_rule_directive ("%prec",
+                               current_rule->ruleprec->location, loc);
+   else
+-    current_rule->ruleprec = precsym;
++    if(!ignore_precedences) current_rule->ruleprec = precsym;
+ }
+ 
+ /* Set %empty for the current rule. */
+@@ -816,6 +817,414 @@
+   return res->content.sym;
+ }
+ 
++static void
++print_symbol_prec_commented(symbol *sym)
++{
++    if(sym->content->prec)
++        printf("/*%d%c*/ ", sym->content->prec,
++                toupper(assoc_to_string(sym->content->assoc)[1]));
++}
++
++static void
++print_symbol_list_prec_commented(symbol_list *sl)
++{
++    symbol *sym = /*sl->ruleprec ? sl->ruleprec :*/ sl->content.sym;
++    print_symbol_prec_commented(sym);
++}
++
++#define STR_EMPTY_COMMENTED "/*empty*/"
++static void
++print_naked_grammar(void)
++{
++  int starting_new_rule = 1, rhs_count = 1;
++  uniqstr prev_rule = NULL;
++  
++  printf("\n/*Tokens*/\n");
++  for (int i = FIRST_USER_TOKEN; i < ntokens; ++i) {
++      printf ("%%token %s\n", symbols[i]->alias ? symbols[i]->alias->tag : symbols[i]->tag);
++  }
++  printf("\n");
++
++  for (int k = 1; k <= current_prec; ++k) {
++      int sassoc = 0;
++      for (int i = FIRST_USER_TOKEN; i < ntokens; ++i)
++      {
++          if(symbols[i]->content->prec == k) {
++            uniqstr tag = symbols[i]->alias ? symbols[i]->alias->tag : symbols[i]->tag;
++            if(!sassoc) {
++                assoc sym_assoc = symbols[i]->content->assoc;
++                const char *assoc_name = 0;
++                printf("%s /*%d*/", assoc_to_string(sym_assoc), k);
++                sassoc = 1;
++            }
++            printf(" %s", tag);
++          }
++      }
++      if(sassoc) {
++        printf("\n");
++      }
++  }
++  printf("\n");
++  
++  for (symbol_list *list = start_symbols; list; list = list->next) {
++      if(list->content.sym && list->content.sym->tag[0] == '$')
++          continue;
++      printf("%%start %s\n", list->content.sym->tag);
++      break;
++  }
++  printf("\n%%%%");
++  
++  symbol *ruleprec = NULL;
++  for (symbol_list *sym = grammar; sym; sym = sym->next) {
++      if(sym->content_type == SYMLIST_SYMBOL) {
++          if(!sym->content.sym) {
++              starting_new_rule = 1;
++              if(ruleprec) {
++                  printf("%%prec %s ", ruleprec->tag);
++                  print_symbol_prec_commented(ruleprec);
++              }
++              ruleprec = NULL;
++              continue;
++          }
++          if(sym->content.sym && (sym->content.sym->tag[0] == '$' || sym->content.sym->tag[0] == '@')) continue;
++          if(starting_new_rule) {
++            ruleprec = sym->ruleprec;
++            if(rhs_count == 0) printf(STR_EMPTY_COMMENTED);
++            if(prev_rule && prev_rule != sym->content.sym->tag)
++                printf("\n\t;");
++            if(prev_rule == sym->content.sym->tag) {
++                printf("\n\t| ");
++                print_symbol_list_prec_commented(sym);
++            }
++            else printf("\n\n%s :\n\t", sym->content.sym->tag);
++            starting_new_rule = rhs_count = 0;
++            prev_rule = sym->content.sym->tag;
++          }
++          else {
++            printf("%s ", sym->content.sym->tag);
++            print_symbol_list_prec_commented(sym);
++            ++rhs_count;
++          }
++      }
++  }
++  if(rhs_count == 0) printf(STR_EMPTY_COMMENTED);
++  printf("\n\t;\n");
++  fflush(stdout);
++}
++
++static const char * ascii_names_st[] = {
++/*0*/ "0NUL" /*Null char*/,
++/*1*/ "SOH" /*Start of Heading*/,
++/*2*/ "STX" /*Start of Text*/,
++/*3*/ "ETX" /*End of Text*/,
++/*4*/ "EOT" /*End of Transmission*/,
++/*5*/ "ENQ" /*Enquiry*/,
++/*6*/ "ACK" /*Acknowledgment*/,
++/*7*/ "BEL" /*Bell*/,
++/*8*/ "BS" /*Back Space*/,
++/*9*/ "HT" /*Horizontal Tab*/,
++/*10*/ "LF" /*Line Feed*/,
++/*11*/ "VT" /*Vertical Tab*/,
++/*12*/ "FF" /*Form Feed*/,
++/*13*/ "CR" /*Carriage Return*/,
++/*14*/ "SO" /*Shift Out / X-On*/,
++/*15*/ "SI" /*Shift In / X-Off*/,
++/*16*/ "DLE" /*Data Line Escape*/,
++/*17*/ "DC1" /*Device Control 1 (oft. XON)*/,
++/*18*/ "DC2" /*Device Control 2*/,
++/*19*/ "DC3" /*Device Control 3 (oft. XOFF)*/,
++/*20*/ "DC4" /*Device Control 4*/,
++/*21*/ "NAK" /*Negative Acknowledgement*/,
++/*22*/ "SYN" /*Synchronous Idle*/,
++/*23*/ "ETB" /*End of Transmit Block*/,
++/*24*/ "CAN" /*Cancel*/,
++/*25*/ "EM" /*End of Medium*/,
++/*26*/ "SUB" /*Substitute*/,
++/*27*/ "ESC" /*Escape*/,
++/*28*/ "FS" /*File Separator*/,
++/*29*/ "GS" /*Group Separator*/,
++/*30*/ "RS" /*Record Separator*/,
++/*31*/ "US" /*Unit Separator*/,
++/*32*/ "32SPACE" /*Space*/,
++/*33*/ "EXCLA" /*! Exclamation mark*/,
++/*34*/ "DQUOTE" /*Double quotes (or speech marks)*/,
++/*35*/ "POUND" /*# Number*/,
++/*36*/ "DOLLAR" /*$ Dollar*/,
++/*37*/ "PERC" /*% Per cent sign*/,
++/*38*/ "AMPER" /*&	Ampersand*/,
++/*39*/ "SQUOTE" /* ' Single quote*/,
++/*40*/ "LP" /*( Open parenthesis (or open bracket)*/,
++/*41*/ "RP" /*) Close parenthesis (or close bracket)*/,
++/*42*/ "ASTERISK" /** Asterisk*/,
++/*43*/ "PLUS" /*+ Plus*/,
++/*44*/ "COMMA" /*, Comma*/,
++/*45*/ "HYPHEN" /*- Hyphen*/,
++/*46*/ "PERIOD" /*. Period, dot or full stop*/,
++/*47*/ "SLASH" /*/ Slash or divide*/,
++/*48*/ "0" /*Zero*/,
++/*49*/ "1" /*One*/,
++/*50*/ "2" /*Two*/,
++/*51*/ "3" /*Three*/,
++/*52*/ "4" /*Four*/,
++/*53*/ "5" /*Five*/,
++/*54*/ "6" /*Six*/,
++/*55*/ "7" /*Seven*/,
++/*56*/ "8" /*Eight*/,
++/*57*/ "9" /*Nine*/,
++/*58*/ "COLON" /*: Colon*/,
++/*59*/ "SEMICOL" /*; Semicolon*/,
++/*60*/ "LT" /*< Less than (or open angled bracket)*/,
++/*61*/ "EQ" /*= Equals*/,
++/*62*/ "GT" /*>Greater than (or close angled bracket)*/,
++/*63*/ "QMARK" /*? Question mark*/,
++/*64*/ "AT" /*@ At symbol*/,
++/*65*/ "A" /*Uppercase A*/,
++/*66*/ "B" /*Uppercase B*/,
++/*67*/ "C" /*Uppercase C*/,
++/*68*/ "D" /*Uppercase D*/,
++/*69*/ "E" /*Uppercase E*/,
++/*70*/ "F" /*Uppercase F*/,
++/*71*/ "G" /*Uppercase G*/,
++/*72*/ "H" /*Uppercase H*/,
++/*73*/ "I" /*Uppercase I*/,
++/*74*/ "J" /*Uppercase J*/,
++/*75*/ "K" /*Uppercase K*/,
++/*76*/ "L" /*Uppercase L*/,
++/*77*/ "M" /*Uppercase M*/,
++/*78*/ "N" /*Uppercase N*/,
++/*79*/ "O" /*Uppercase O*/,
++/*80*/ "P" /*Uppercase P*/,
++/*81*/ "Q" /*Uppercase Q*/,
++/*82*/ "R" /*Uppercase R*/,
++/*83*/ "S" /*Uppercase S*/,
++/*84*/ "T" /*Uppercase T*/,
++/*85*/ "U" /*Uppercase U*/,
++/*86*/ "V" /*Uppercase V*/,
++/*87*/ "W" /*Uppercase W*/,
++/*88*/ "X" /*Uppercase X*/,
++/*89*/ "Y" /*Uppercase Y*/,
++/*90*/ "Z" /*Uppercase Z*/,
++/*91*/ "LBRACKET" /*[ Opening bracket*/,
++/*92*/ "BACKSLASH" /*/ Backslash*/,
++/*93*/ "RBRACKET" /*] Closing bracket*/,
++/*94*/ "CARET" /*^Caret - circumflex*/,
++/*95*/ "UNDERSCORE" /*_ Underscore*/,
++/*96*/ "GRAVE" /*` Grave accent*/,
++/*97*/ "a" /*Lowercase a*/,
++/*98*/ "b" /*Lowercase b*/,
++/*99*/ "c" /*Lowercase c*/,
++/*100*/ "d" /*Lowercase d*/,
++/*101*/ "e" /*Lowercase e*/,
++/*102*/ "f" /*Lowercase f*/,
++/*103*/ "g" /*Lowercase g*/,
++/*104*/ "h" /*Lowercase h*/,
++/*105*/ "i" /*Lowercase i*/,
++/*106*/ "j" /*Lowercase j*/,
++/*107*/ "k" /*Lowercase k*/,
++/*108*/ "l" /*Lowercase l*/,
++/*109*/ "m" /*Lowercase m*/,
++/*110*/ "n" /*Lowercase n*/,
++/*111*/ "o" /*Lowercase o*/,
++/*112*/ "p" /*Lowercase p*/,
++/*113*/ "q" /*Lowercase q*/,
++/*114*/ "r" /*Lowercase r*/,
++/*115*/ "s" /*Lowercase s*/,
++/*116*/ "t" /*Lowercase t*/,
++/*117*/ "u" /*Lowercase u*/,
++/*118*/ "v" /*Lowercase v*/,
++/*119*/ "w" /*Lowercase w*/,
++/*120*/ "x" /*Lowercase x*/,
++/*121*/ "y" /*Lowercase y*/,
++/*122*/ "z" /*Lowercase z*/,
++/*123*/ "LBRACE" /*{ Opening brace*/,
++/*124*/ "VERTBAR" /*| Vertical bar*/,
++/*125*/ "RBRACE" /*} Closing brace*/,
++/*126*/ "TILDE" /*~ Equivalency sign - tilde*/,
++/*127*/ "127" /*Delete*/
++};
++
++typedef char char64_t[64];
++
++static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
++{
++    int ch;
++    if(tkname[0] == '\'') {
++        if(tkname[2] == '\'') {
++            ch = tkname[1];
++            if(ch < 127) snprintf(*buf, sizeof(char64_t), "Tk_%s", ascii_names_st[ch]);
++            else snprintf(*buf, sizeof(char64_t), "Tk_%d", ch);
++        }            
++        else if(tkname[3] == '\'') {
++            ch = tkname[2];
++            switch(ch) {
++                case 'n': ch = '\n'; break;
++                case 't': ch = '\t'; break;
++                case 'f': ch = '\f'; break;
++                case 'r': ch = '\r'; break;
++                case 'v': ch = '\v'; break;
++                case '\\': ch = '\\'; break;
++                default:
++                    ch = -1;
++            }
++            if(ch < 127) snprintf(*buf, sizeof(char64_t), "Tk_%s", ascii_names_st[ch]);
++            else snprintf(*buf, sizeof(char64_t), "Tk_%d", ch);
++        } else
++            snprintf(*buf, sizeof(char64_t), "Tk_%*s", (int)strlen(tkname)-2, tkname+1);            
++    }
++    else if(tkname[0] == '"') {
++            snprintf(*buf, sizeof(char64_t), "Tk_%s", tkname+1);
++            (*buf)[strlen(*buf)-1] = '\0';
++    }
++    else if(tkname[0] == '.') {
++            snprintf(*buf, sizeof(char64_t), "x%s", tkname);
++            (*buf)[1] = '_';
++    }
++    else if(islower(tkname[0])) {
++            snprintf(*buf, sizeof(char64_t), "%s", tkname);
++            (*buf)[0] = toupper(tkname[0]);
++    }
++    else
++        snprintf(*buf, sizeof(char64_t), "%s", tkname);
++    for(int i=0; (*buf)[i]; ++i) {
++        if((*buf)[i] == '.')
++            (*buf)[i] = '_';
++    }
++    return *buf;
++}
++
++static const char *get_lemon_rule_name(char64_t *buf, const char *tkname)
++{
++    if(tkname[0] == '.') {
++            snprintf(*buf, sizeof(char64_t), "x%s", tkname);
++            (*buf)[1] = '_';
++    }
++    else if(tkname[0] == '_') {
++            snprintf(*buf, sizeof(char64_t), "z%s", tkname);
++    }
++    else if(isupper(tkname[0])) {
++            snprintf(*buf, sizeof(char64_t), "%s", tkname);
++            (*buf)[0] = tolower(tkname[0]);
++    }
++    else
++        snprintf(*buf, sizeof(char64_t), "%s", tkname);
++    for(int i=0; (*buf)[i]; ++i) {
++        if((*buf)[i] == '.')
++            (*buf)[i] = '_';
++    }
++    return *buf;
++}
++
++static void
++print_lemon_grammar(void)
++{
++  int starting_new_rule = 1, rhs_count = 1, rule_count = 0;
++  uniqstr prev_rule = NULL;
++  char64_t buf;
++  
++  printf("\n/*Tokens*/\n");
++  for (int i = FIRST_USER_TOKEN; i < ntokens; ++i) {
++      printf ("%%token %s .\n", get_lemon_token_name(&buf, symbols[i]->alias ? symbols[i]->alias->tag : symbols[i]->tag));
++  }
++  printf("\n");
++
++  for (int k = 1; k <= current_prec; ++k) {
++      int sassoc = 0;
++      for (int i = FIRST_USER_TOKEN; i < ntokens; ++i)
++      {
++          if(symbols[i]->content->prec == k) {
++            uniqstr tag = get_lemon_token_name(&buf, symbols[i]->alias ? symbols[i]->alias->tag : symbols[i]->tag);
++            if(!sassoc) {
++                assoc sym_assoc = symbols[i]->content->assoc;
++                const char *assoc_name = 0;
++                printf("%s /*%d*/", assoc_to_string(sym_assoc), k);
++                sassoc = 1;
++            }
++            printf(" %s", tag);
++          }
++      }
++      if(sassoc) {
++        printf(" .\n");
++      }
++  }
++  printf("\n");
++  
++  for (symbol_list *list = start_symbols; list; list = list->next) {
++      if(list->content.sym && list->content.sym->tag[0] == '$')
++          continue;
++      printf("%%start_symbol %s\n", get_lemon_rule_name(&buf, list->content.sym->tag));
++      break;
++  }
++  printf("\n");
++  
++  symbol *ruleprec = NULL;
++  for (symbol_list *sym = grammar; sym; sym = sym->next) {
++      if(sym->content_type == SYMLIST_SYMBOL) {
++          if(!sym->content.sym) {
++              starting_new_rule = 1;
++              continue;
++          }
++          if(sym->content.sym && (sym->content.sym->tag[0] == '$' || sym->content.sym->tag[0] == '@')) continue;
++          if(starting_new_rule) {
++            if(rhs_count == 0) printf(STR_EMPTY_COMMENTED);
++            if(rule_count > 0) printf("."); /* no dot at start */
++            ++rule_count;
++            if(ruleprec) {
++                printf(" [%s]\n", get_lemon_token_name(&buf, ruleprec->alias ? ruleprec->alias->tag : ruleprec->tag));
++                print_symbol_prec_commented(ruleprec);
++            }
++            else printf("\n");
++            ruleprec = sym->ruleprec;
++            if(prev_rule != sym->content.sym->tag) {
++                prev_rule = sym->content.sym->tag;
++                printf("\n");
++            }
++            print_symbol_list_prec_commented(sym);
++            printf("%s ::= ", get_lemon_rule_name(&buf, sym->content.sym->tag));
++            starting_new_rule = rhs_count = 0;
++          }
++          else {
++            if(sym->content.sym->content->class == token_sym)
++                printf("%s ", get_lemon_token_name(&buf, sym->content.sym->tag));
++            else
++                printf("%s ", get_lemon_rule_name(&buf, sym->content.sym->tag));
++            print_symbol_list_prec_commented(sym);
++            ++rhs_count;
++          }
++      }
++  }
++  if(rhs_count == 0) printf(STR_EMPTY_COMMENTED);
++  printf(".\n");
++  fflush(stdout);
++}
++
++static void
++print_rrebnf(void)
++{
++  int starting_new_rule = 1, rhs_count = 1;
++  uniqstr prev_rule = NULL;
++  for (symbol_list *sym = grammar; sym; sym = sym->next) {
++      if(sym->content_type == SYMLIST_SYMBOL) {
++          if(!sym->content.sym) {
++              starting_new_rule = 1;
++              continue;
++          }
++          if(starting_new_rule) {
++            if(rhs_count == 0) printf(STR_EMPTY_COMMENTED);
++            if(prev_rule == sym->content.sym->tag) printf("\n\t| ");
++            else printf("\n\n%s ::=\n\t", sym->content.sym->tag);
++            starting_new_rule = rhs_count = 0;
++            prev_rule = sym->content.sym->tag;
++          }
++          else {
++            printf("%s ", sym->content.sym->tag);
++            ++rhs_count;
++          }
++      }
++  }
++  if(rhs_count == 0) printf(STR_EMPTY_COMMENTED);
++  printf("\n\n");
++  fflush(stdout);
++}
+ 
+ /* Insert an initial rule, whose location is that of the first rule
+    (not that of the start symbol):
+@@ -1000,6 +1409,10 @@
+   /* Convert the grammar into the format described in gram.h.  */
+   packgram ();
+ 
++  if(rrebnf_flag) print_rrebnf();
++  if(naked_flag) print_naked_grammar();
++  if(lemon_flag) print_lemon_grammar();
++
+   /* The grammar as a symbol_list is no longer needed. */
+   symbol_list_free (grammar);
+ }
