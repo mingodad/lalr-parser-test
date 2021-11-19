@@ -3298,11 +3298,11 @@ PRIVATE FILE *file_open(
   return fp;
 }
 
-static void
-print_symbol_prec_commented(FILE *out, struct symbol *sym)
+static int
+get_symbol_prec_chr(struct symbol *sym)
 {
+    int assoc_chr = 'U';
     if(sym->prec >= 0 && sym->type==TERMINAL) {
-        char assoc_chr;
         switch(sym->assoc) {
             case LEFT: assoc_chr = 'L'; break;
             case RIGHT: assoc_chr = 'R'; break;
@@ -3310,8 +3310,14 @@ print_symbol_prec_commented(FILE *out, struct symbol *sym)
             case PRECEDENCE: assoc_chr = 'P'; break;
             case UNK: assoc_chr = 'U'; break;
         }
-        fprintf(out," /*%d%c*/", sym->prec, assoc_chr);
     }
+    return assoc_chr;
+}
+
+static void
+print_symbol_prec_commented(FILE *out, struct symbol *sym)
+{
+    fprintf(out," /*%d%c*/", sym->prec, get_symbol_prec_chr(sym));
 }
 
 /* Print the text of a rule
@@ -4621,24 +4627,56 @@ void ReportTable(
        "  fallback INTEGER REFERENCES symbol"
                " DEFERRABLE INITIALLY DEFERRED\n"
        ");\n"
+       "CREATE TABLE precednce(\n"
+       "  id INTEGER PRIMARY KEY REFERENCES symbol"
+               " DEFERRABLE INITIALLY DEFERRED,\n"
+       "  prec INTEGER NOT NULL,\n"
+       "  assoc CHAR NOT NULL CHECK(assoc IN('L','R','N','P'))\n"
+       ");\n"
+       "CREATE TABLE first_sets(\n"
+       "  id INTEGER PRIMARY KEY,\n"
+       "  nterminal INTEGER REFERENCES symbol"
+               " DEFERRABLE INITIALLY DEFERRED,\n"
+       "  terminal INTEGER REFERENCES symbol"
+               " DEFERRABLE INITIALLY DEFERRED,\n"
+       "  unique(nterminal, terminal)\n"
+       ");\n"
     );
     for(i=0; i<lemp->nsymbol; i++){
+      struct symbol *sp = lemp->symbols[i];
       fprintf(sql,
          "INSERT INTO symbol(id,name,isTerminal,fallback)"
-         "VALUES(%d,'%s',%s",
-         i, lemp->symbols[i]->name,
+         " VALUES(%d,'%s',%s",
+         i, sp->name,
          i<lemp->nterminal ? "TRUE" : "FALSE"
       );
-      if( lemp->symbols[i]->fallback ){
-        fprintf(sql, ",%d);\n", lemp->symbols[i]->fallback->index);
+      if( sp->fallback ){
+        fprintf(sql, ",%d);\n", sp->fallback->index);
       }else{
         fprintf(sql, ",NULL);\n");
+      }
+      if(sp->prec > 0) {
+        fprintf(sql,
+           "INSERT INTO precednce(id,prec,assoc)"
+           " VALUES(%d,%d,'%c');\n",
+           i, sp->prec, get_symbol_prec_chr(sp)
+        );
+      }
+      if(sp->type == NONTERMINAL) {
+        for(j=0; j<lemp->nterminal; j++){
+          if( sp->firstset && SetFind(sp->firstset, j) ){
+            fprintf(sql,
+               "INSERT INTO first_sets(nterminal,terminal)"
+               " VALUES(%d,%d);\n", i, j);
+          }
+        }
       }
     }
     fprintf(sql,
       "CREATE TABLE rule(\n"
       "  ruleid INTEGER PRIMARY KEY,\n"
       "  lhs INTEGER REFERENCES symbol(id),\n"
+      "  prec_id INTEGER REFERENCES symbol(id),\n"
       "  txt TEXT\n"
       ");\n"
       "CREATE TABLE rulerhs(\n"
@@ -4650,23 +4688,27 @@ void ReportTable(
     for(i=0, rp=lemp->rule; rp; rp=rp->next, i++){
       assert( i==rp->iRule );
       fprintf(sql,
-        "INSERT INTO rule(ruleid,lhs,txt)VALUES(%d,%d,'",
+        "INSERT INTO rule(ruleid,lhs,prec_id,txt) VALUES(%d,%d,",
         rp->iRule, rp->lhs->index
       );
+      if(rp->precsym) {
+          fprintf(sql,"%d,'", rp->precsym->id);
+      }
+      else fprintf(sql,"NULL,'");
       writeRuleText(sql, rp);
       fprintf(sql,"');\n");
       for(j=0; j<rp->nrhs; j++){
         struct symbol *sp = rp->rhs[j];
         if( sp->type!=MULTITERMINAL ){
           fprintf(sql,
-            "INSERT INTO rulerhs(ruleid,pos,sym)VALUES(%d,%d,%d);\n",
+            "INSERT INTO rulerhs(ruleid,pos,sym) VALUES(%d,%d,%d);\n",
             i,j,sp->index
           );
         }else{
           int k;
           for(k=0; k<sp->nsubsym; k++){
             fprintf(sql,
-              "INSERT INTO rulerhs(ruleid,pos,sym)VALUES(%d,%d,%d);\n",
+              "INSERT INTO rulerhs(ruleid,pos,sym) VALUES(%d,%d,%d);\n",
               i,j,sp->subsym[k]->index
             );
           }
