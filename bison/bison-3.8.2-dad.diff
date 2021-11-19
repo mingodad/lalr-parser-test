@@ -243,7 +243,7 @@ diff -u src/parse-gram.y src-dad/parse-gram.y
  ;
 diff -u src/reader.c src-dad/reader.c
 --- src/reader.c	2021-11-15 11:15:38.428233427 +0100
-+++ src-dad/reader.c	2021-11-19 14:59:25.543454658 +0100
++++ src-dad/reader.c	2021-11-19 15:11:04.232883394 +0100
 @@ -20,6 +20,7 @@
  
  #include <config.h>
@@ -261,7 +261,7 @@ diff -u src/reader.c src-dad/reader.c
  }
  
  /* Set %empty for the current rule. */
-@@ -816,6 +817,412 @@
+@@ -816,6 +817,411 @@
    return res->content.sym;
  }
  
@@ -615,16 +615,15 @@ diff -u src/reader.c src-dad/reader.c
 +            if(rule_count > 0) printf("."); /* no dot at start */
 +            ++rule_count;
 +            if(ruleprec) {
-+                printf(" [%s]\n", get_lemon_token_name(&buf, ruleprec->alias ? ruleprec->alias->tag : ruleprec->tag));
++                printf(" [%s]", get_lemon_token_name(&buf, ruleprec->alias ? ruleprec->alias->tag : ruleprec->tag));
 +                print_symbol_prec_commented(ruleprec);
 +            }
-+            else printf("\n");
++            printf("\n");
 +            ruleprec = sym->ruleprec;
 +            if(prev_rule != sym->content.sym->tag) {
 +                prev_rule = sym->content.sym->tag;
 +                printf("\n");
 +            }
-+            print_symbol_list_prec_commented(sym);
 +            printf("%s ::= ", get_lemon_rule_name(&buf, sym->content.sym->tag));
 +            starting_new_rule = rhs_count = 0;
 +          }
@@ -674,7 +673,7 @@ diff -u src/reader.c src-dad/reader.c
  
  /* Insert an initial rule, whose location is that of the first rule
     (not that of the start symbol):
-@@ -1000,6 +1407,10 @@
+@@ -1000,6 +1406,10 @@
    /* Convert the grammar into the format described in gram.h.  */
    packgram ();
  
