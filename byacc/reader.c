@@ -2571,7 +2571,7 @@ insert_arg_rule(char *arg, char *tag)
 	rule = nrules;
 	insert_arg_cache(code, rule);
 	trialaction = 1;	/* arg rules always run in trial mode */
-	begin_case(f, rule - 2);
+	begin_case(f, rule - RULE_NUM_OFFSET);
 	fprintf_lineno(f, line_number, input_file_name);
 	fprintf(f, "%s;", code);
 	end_case(f);
@@ -2725,7 +2725,7 @@ copy_action(void)
     trialaction = (*cptr == L_BRAC);
 #endif
 
-    begin_case(f, nrules - 2);
+    begin_case(f, nrules - RULE_NUM_OFFSET);
 #if defined(YYBTYACC)
     if (backtrack)
     {
@@ -3863,12 +3863,12 @@ print_grammar(void)
 	{
 	    if (i != 2)
 		fprintf(f, "\n");
-	    fprintf(f, "%4d  %s :", i - 2, symbol_name[rlhs[i]]);
+	    fprintf(f, "%4d  %s :", i - RULE_NUM_OFFSET, symbol_name[rlhs[i]]);
 	    spacing = strlen(symbol_name[rlhs[i]]) + 1;
 	}
 	else
 	{
-	    fprintf(f, "%4d  ", i - 2);
+	    fprintf(f, "%4d  ", i - RULE_NUM_OFFSET);
 	    j = spacing;
 	    while (j-- != 0)
 		putc(' ', f);
@@ -3881,6 +3881,10 @@ print_grammar(void)
 	    ++k;
 	}
 	++k;
+        bucket *prec_bucket = rprec_bucket[i];
+        if(prec_bucket) {
+            fprintf(f, " %%prec %s", prec_bucket->name);
+        }
 	putc('\n', f);
     }
 }
@@ -4155,6 +4159,29 @@ print_symbol_prec_commented(FILE *out, Value_t sym)
     }
 }
 
+static const char*
+get_prec_name(int sym_id) {
+    Value_t assoc = symbol_assoc[sym_id];
+    const char *assoc_name;
+    switch(assoc) {
+        case LEFT:
+            assoc_name = "left";
+            break;
+
+        case RIGHT:
+            assoc_name = "right";
+            break;
+
+        case NONASSOC:
+            assoc_name = "nonassoc";
+            break;
+
+        default:
+            assoc_name = NULL;
+    }
+    return assoc_name;
+}
+
 static void
 print_grammar_lemon(void)
 {
@@ -4183,24 +4210,8 @@ print_grammar_lemon(void)
                 const char *sym_name = symbol_name[i];
                 if(sym_name[0] != '$') {
                     if(!sassoc) {
-                        Value_t assoc = symbol_assoc[i];
-                        const char *assoc_name = 0;
-                        switch(assoc) {
-                            case LEFT:
-                                assoc_name = "left";
-                                break;
-
-                            case RIGHT:
-                                assoc_name = "right";
-                                break;
-
-                            case NONASSOC:
-                                assoc_name = "nonassoc";
-                                break;
-
-                            default:
-                                continue;
-                        }
+                        const char *assoc_name = get_prec_name(i);
+                        if(!assoc_name) continue;
                         fprintf(f, "%%%s /*%d*/", assoc_name, prec);
                         sassoc = 1;
                     }
@@ -4286,24 +4297,8 @@ print_grammar_naked(void)
                 const char *sym_name = symbol_name[i];
                 if(sym_name[0] != '$') {
                     if(!sassoc) {
-                        Value_t assoc = symbol_assoc[i];
-                        const char *assoc_name = 0;
-                        switch(assoc) {
-                            case LEFT:
-                                assoc_name = "left";
-                                break;
-
-                            case RIGHT:
-                                assoc_name = "right";
-                                break;
-
-                            case NONASSOC:
-                                assoc_name = "nonassoc";
-                                break;
-
-                            default:
-                                continue;
-                        }
+                        const char *assoc_name = get_prec_name(i);
+                        if(!assoc_name) continue;
                         fprintf(f, "%%%s /*%d*/", assoc_name, prec);
                         sassoc = 1;
                     }

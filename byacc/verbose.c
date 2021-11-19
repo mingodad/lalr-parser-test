@@ -39,7 +39,7 @@ verbose(void)
     fprintf(verbose_file, "\n\n%ld terminals, %ld nonterminals\n",
 	    (long)ntokens, (long)nvars);
     fprintf(verbose_file, "%ld grammar rules, %ld states\n",
-	    (long)(nrules - 2), (long)nstates);
+	    (long)(nrules - RULE_NUM_OFFSET), (long)nstates);
 #if defined(YYBTYACC)
     {				/* print out the grammar symbol # and parser internal symbol # for each
 				   symbol as an aide to writing the implementation for YYDESTRUCT_CALL()
@@ -76,7 +76,7 @@ log_unused(void)
 	    fprintf(verbose_file, "\t%s :", symbol_name[rlhs[i]]);
 	    for (p = ritem + rrhs[i]; *p >= 0; ++p)
 		fprintf(verbose_file, " %s", symbol_name[*p]);
-	    fprintf(verbose_file, "  (%d)\n", i - 2);
+	    fprintf(verbose_file, "  (%d)\n", i - RULE_NUM_OFFSET);
 	}
     }
 }
@@ -124,6 +124,7 @@ static void
 print_conflicts(int state)
 {
     int symbol, act, number;
+    Value_t r1, r2;
     action *p;
 
     act = 0;			/* not shift/reduce... */
@@ -145,23 +146,27 @@ print_conflicts(int state)
 	}
 	else if (p->suppressed == 1)
 	{
+            r2 = p->number - RULE_NUM_OFFSET;
 	    if (state == final_state && symbol == 0)
 	    {
 		fprintf(verbose_file, "%d: shift/reduce conflict \
-(accept, reduce %ld) on $end\n", state, (long)(p->number - 2));
+(accept, reduce %ld [%s]) on $end\n", state, (long)(r2), symbol_name[rlhs[p->number]]);
 	    }
 	    else
 	    {
 		if (act == SHIFT)
 		{
 		    fprintf(verbose_file, "%d: shift/reduce conflict \
-(shift %ld, reduce %ld) on %s\n", state, (long)number, (long)(p->number - 2),
-			    symbol_name[symbol]);
+(shift %ld, reduce %ld [%s]) on %s\n", state, (long)number, (long)(r2),
+			    symbol_name[rlhs[p->number]], symbol_name[symbol]);
 		}
 		else
 		{
+                    r1 = number - RULE_NUM_OFFSET;
 		    fprintf(verbose_file, "%d: reduce/reduce conflict \
-(reduce %ld, reduce %ld) on %s\n", state, (long)(number - 2), (long)(p->number - 2),
+(reduce %ld [%s], reduce %ld [%s]) on %s\n", state,
+                            (long)(r1), symbol_name[rlhs[r1]],
+                            (long)(r2), symbol_name[rlhs[p->number]],
 			    symbol_name[symbol]);
 		}
 	    }
@@ -190,7 +195,7 @@ print_core(int state)
 	for (sp = ritem + rrhs[rule]; sp < sp1; sp++)
 	    fprintf(verbose_file, "%s ", symbol_name[*sp]);
 
-	putc('.', verbose_file);
+	putc(VERBOSE_RULE_POINT_CHAR, verbose_file);
 
 	while (*sp >= 0)
 	{
@@ -239,7 +244,7 @@ print_nulls(int state)
     {
 	j = null_rules[i];
 	fprintf(verbose_file, "\t%s : .  (%ld)\n", symbol_name[rlhs[j]],
-		(long)(j - 2));
+		(long)(j - RULE_NUM_OFFSET));
     }
     fprintf(verbose_file, "\n");
 }
@@ -323,11 +328,11 @@ print_reductions(action *p, int defred2)
 	{
 	    if (p->action_code == REDUCE && p->number != defred2)
 	    {
-		int k = p->number - 2;
+		int k = p->number - RULE_NUM_OFFSET;
 
 		if (p->suppressed == 0)
-		    fprintf(verbose_file, "\t%s  reduce %d\n",
-			    symbol_name[p->symbol], k);
+		    fprintf(verbose_file, "\t%s  reduce %d [%s]\n",
+			    symbol_name[p->symbol], k, symbol_name[rlhs[p->number]]);
 #if defined(YYBTYACC)
 		if (backtrack && p->suppressed == 1)
 		    fprintf(verbose_file, "\t%s  [trial] reduce %d\n",
@@ -337,7 +342,7 @@ print_reductions(action *p, int defred2)
 	}
 
 	if (defred2 > 0)
-	    fprintf(verbose_file, "\t.  reduce %d\n", defred2 - 2);
+	    fprintf(verbose_file, "\t.  reduce %d\n", defred2 - RULE_NUM_OFFSET);
     }
 }
 

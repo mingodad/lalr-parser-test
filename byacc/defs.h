@@ -105,6 +105,8 @@
 #define	LEMON_SUFFIX	".yl"
 #define GRAPH_SUFFIX    ".dot"
 #define NAKED_SUFFIX    ".yn"
+#define VERBOSE_RULE_POINT_CHAR    '*'
+#define RULE_NUM_OFFSET 2
 
 /* keyword codes */
 

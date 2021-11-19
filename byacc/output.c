@@ -349,7 +349,7 @@ output_yydefred(void)
 {
     int i, j;
 
-    start_int_table("defred", (defred[0] ? defred[0] - 2 : 0));
+    start_int_table("defred", (defred[0] ? defred[0] - RULE_NUM_OFFSET : 0));
 
     j = 10;
     for (i = 1; i < nstates; i++)
@@ -362,7 +362,7 @@ output_yydefred(void)
 	    j = 1;
 	}
 
-	output_int((defred[i] ? defred[i] - 2 : 0));
+	output_int((defred[i] ? defred[i] - RULE_NUM_OFFSET : 0));
     }
 
     end_table();
@@ -519,7 +519,7 @@ token_actions(void)
 			    else
 				conflicts[nconflicts++] = -1;
 			}
-			conflicts[nconflicts++] = (Value_t)(p->number - 2);
+			conflicts[nconflicts++] = (Value_t)(p->number - RULE_NUM_OFFSET);
 		    }
 		}
 #endif
@@ -591,7 +591,7 @@ token_actions(void)
 			if (max < symbol_value[j])
 			    max = symbol_value[j];
 			*r++ = symbol_value[j];
-			*s++ = (Value_t)(actionrow[ntokens + j] - 2);
+			*s++ = (Value_t)(actionrow[ntokens + j] - RULE_NUM_OFFSET);
 		    }
 		}
 		width[nstates + i] = (Value_t)(max - min + 1);
