@@ -301,6 +301,7 @@ struct rule {
   struct symbol *precsym;  /* Precedence symbol for this rule */
   int index;               /* An index number for this rule */
   int iRule;               /* Rule number as used in the generated tables */
+  Boolean precsym_decl;    /* True if precsym was declared in grammar rule [] */
   Boolean noCode;          /* True if this rule has no associated C code */
   Boolean codeEmitted;     /* True if the code has been emitted already */
   Boolean canReduce;       /* True if this rule is ever reduced */
@@ -2378,6 +2379,7 @@ static void parseonetoken(struct lemon *lem, struct pstate *psp)
       }else{
         if(!psp->gp->ignorePrec)
             psp->prevrule->precsym = Symbol_new(lem, x);
+            psp->prevrule->precsym_decl = LEMON_TRUE;
       }
       psp->state = PRECEDENCE_MARK_2;
       break;
@@ -4585,7 +4587,7 @@ void ReportTable(
   struct action *ap;
   struct rule *rp;
   struct acttab *pActtab;
-  int b, i, j, n, sz;
+  int b, i, j, n, sz, first_symbol;
   int nLookAhead;
   int szActionType;     /* sizeof(YYACTIONTYPE) */
   int szCodeType;       /* sizeof(YYCODETYPE)   */
@@ -4628,16 +4630,17 @@ void ReportTable(
                " DEFERRABLE INITIALLY DEFERRED\n"
        ");\n"
     );
-    for(i=0; i<lemp->nsymbol; i++){
+    first_symbol = 1; /* start from 1 to skip $ */
+    for(i=first_symbol; i<lemp->nsymbol; i++){
       struct symbol *sp = lemp->symbols[i];
-      if(i==0) {
+      if(i==first_symbol) {
         fprintf(sql,
            "INSERT INTO symbol(id,name,isTerminal,fallback)"
            " VALUES\n");
       }
       fprintf(sql,
          " %s(%d,'%s',%s",
-         (i > 0) ? "," : " ", i, sp->name,
+         (i > first_symbol) ? "," : " ", i, sp->name,
          i<lemp->nterminal ? "TRUE" : "FALSE"
       );
       if( sp->fallback ){
@@ -4646,10 +4649,10 @@ void ReportTable(
         fprintf(sql, ",NULL)\n");
       }
     }
-    if(i>0) fprintf(sql, " ;\n");
+    if(i>first_symbol) fprintf(sql, " ;\n");
 
     fprintf(sql,
-       "CREATE TABLE precednce(\n"
+       "CREATE TABLE precedence(\n"
        "  id INTEGER PRIMARY KEY REFERENCES symbol"
                " DEFERRABLE INITIALLY DEFERRED,\n"
        "  prec INTEGER NOT NULL,\n"
@@ -4661,7 +4664,7 @@ void ReportTable(
       if(sp->prec > 0) {
         if(b==0) {
             fprintf(sql,
-               "INSERT INTO precednce(id,prec,assoc)"
+               "INSERT INTO precedence(id,prec,assoc)"
                " VALUES\n");
         }
         fprintf(sql,
@@ -4673,7 +4676,7 @@ void ReportTable(
       }
     }
     if(b>0) fprintf(sql, " ;\n");
-
+#if 0
     fprintf(sql,
        "CREATE TABLE first_sets(\n"
        "  id INTEGER PRIMARY KEY,\n"
@@ -4702,34 +4705,39 @@ void ReportTable(
       }
     }
     if(b>0) fprintf(sql, " ;\n");
-
+#endif
     fprintf(sql,
       "CREATE TABLE rule(\n"
       "  ruleid INTEGER PRIMARY KEY,\n"
       "  lhs INTEGER REFERENCES symbol(id),\n"
-      "  prec_id INTEGER REFERENCES symbol(id),\n"
-      "  txt TEXT\n"
+      "  prec_id INTEGER REFERENCES symbol(id)\n"
       ");\n"
     );
     for(i=0, b=0, rp=lemp->rule; rp; rp=rp->next, i++){
       assert( i==rp->iRule );
       if(b==0) {
         fprintf(sql,
-          "INSERT INTO rule(ruleid,lhs,prec_id,txt) VALUES\n");
+          "INSERT INTO rule(ruleid,lhs,prec_id) VALUES\n");
       }
       fprintf(sql,
         " %s(%d,%d,",
         (b > 0) ? "," : " ", rp->iRule, rp->lhs->index
       );
-      if(rp->precsym) {
-          fprintf(sql,"%d,'", rp->precsym->id);
+      if(rp->precsym_decl) {
+          fprintf(sql,"%d)", rp->precsym->index);
       }
-      else fprintf(sql,"NULL,'");
-      writeRuleText(sql, rp);
-      fprintf(sql,"')\n");
+      else fprintf(sql,"NULL)");
+      //writeRuleText(sql, rp);
+      if((b%4) == 0) fprintf(sql, "\n");
       ++b;
     }
     if(b>0) fprintf(sql, " ;\n");
+
+    fprintf(sql,
+      "CREATE TABLE start_rule as\n"
+      "  select id, name from symbol where name = '%s';\n",
+            lemp->startRule->lhs->name
+    );
 
     fprintf(sql,
       "CREATE TABLE rulerhs(\n"
@@ -4746,27 +4754,77 @@ void ReportTable(
           fprintf(sql,
             "INSERT INTO rulerhs(ruleid,pos,sym) VALUES\n");
         }
-        if( sp->type!=MULTITERMINAL ){
-          fprintf(sql,
-            " %s(%d,%d,%d)",
-            (b > 0) ? "," : " ", i,j,sp->index
-          );
-        }else{
+        if( sp->type==MULTITERMINAL ){
           int k;
           for(k=0; k<sp->nsubsym; k++){
             fprintf(sql,
               " %s(%d,%d,%d)",
               (b > 0) ? "," : " ", i,j,sp->subsym[k]->index
             );
+            ++b;
+            if((b%5) == 0) fprintf(sql, "\n");
           }
+        }else{
+          fprintf(sql,
+            " %s(%d,%d,%d)",
+            (b > 0) ? "," : " ", i,j,sp->index
+          );
+          ++b;
+          if((b%5) == 0) fprintf(sql, "\n");
         }
-        ++b;
-        if((b%5) == 0) fprintf(sql, "\n");
       }
     }
     if(b>0) fprintf(sql, " ;\n");
 
-    fprintf(sql, "COMMIT;\n");
+    fprintf(sql,
+      "CREATE VIEW rule_rhs_terminal_view AS\n"
+      "SELECT rr.ruleid, pos, group_concat(rs.name, '|') as name\n"
+      "FROM rulerhs AS rr LEFT JOIN symbol AS rs\n"
+      "  ON rr.sym=rs.id\n"
+      "GROUP BY ruleid, pos;\n"
+      "CREATE VIEW rule_view AS\n"
+      "SELECT s.name || ' ::= ' || ifnull((\n"
+      "  SELECT group_concat(rs.name, ' ')\n"
+      "  FROM rule_rhs_terminal_view AS rs\n"
+      "  WHERE rs.ruleid=r.ruleid\n"
+      "  ORDER BY rs.pos), '/*empty*/') || ' .'\n"
+      "    || ifnull((' [' || sp.name || ']'), '')\n"
+      "FROM rule AS r\n"
+      "  LEFT JOIN symbol AS s ON r.lhs=s.id\n"
+      "  LEFT JOIN symbol AS sp ON r.prec_id=sp.id\n"
+      "ORDER BY r.ruleid;\n"
+      "CREATE VIEW token_view AS\n"
+      "SELECT ('%%token ' || name || ' .') AS tk\n"
+      "FROM symbol WHERE isTerminal=TRUE\n"
+      "ORDER BY id;\n"
+      "CREATE VIEW fallback_view AS\n"
+      "SELECT ('%%fallback ' || sf.name || '\n"
+      "  ' || group_concat(s.name, ' ') || '\n"
+      "  .') AS fb\n"
+      "FROM symbol s JOIN symbol sf ON s.fallback = sf.id;\n"
+      "CREATE VIEW prec_view AS\n"
+      "WITH prec(id, name) AS (VALUES('L','%%left'),('R','%%right'),('N','%%nonassoc'),('P','%%precedence'))\n"
+      "SELECT prec.name || ' ' || group_concat(s.name, ' ') || ' .'\n"
+      "FROM precedence AS p\n"
+      "	LEFT JOIN prec ON p.assoc=prec.id\n"
+      "	LEFT JOIN symbol AS s on p.id=s.id\n"
+      "GROUP BY p.prec\n"
+      "ORDER BY p.prec;\n"
+      "CREATE VIEW grammar_view AS\n"
+      "SELECT * FROM token_view\n"
+      "UNION ALL\n"
+      "SELECT * FROM fallback_view\n"
+      "UNION ALL\n"
+      "SELECT * FROM prec_view\n"
+      "UNION ALL\n"
+      "SELECT '%%start_symbol ' || name\n"
+      "FROM start_rule\n"
+      "UNION ALL\n"
+      "SELECT * FROM rule_view;\n"
+
+      "COMMIT;\n"
+      "--select * from grammar_view;\n"
+    );
   }
   lineno = 1;
 
