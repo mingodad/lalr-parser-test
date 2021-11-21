@@ -227,7 +227,7 @@ unused_rules(void)
 static void
 remove_conflicts(void)
 {
-    int i;
+    int i, b;
     action *p, *pref = 0;
 
     SRtotal = 0;
@@ -295,9 +295,27 @@ remove_conflicts(void)
 	    }
 	    else
 	    {
-		RRcount++;
-		p->suppressed = 1;
-		StartBacktrack(pref);
+                b = 0;
+		if (pref->prec > 0 && p->prec > 0)
+		{
+		    if (pref->prec < p->prec)
+		    {
+			pref->suppressed = 2;
+			pref = p;
+                        b = 1;
+		    }
+		    else if (pref->prec > p->prec)
+		    {
+			p->suppressed = 2;
+                        b = 1;
+		    }
+		}
+		if(!b)
+		{
+		    SRcount++;
+		    p->suppressed = 1;
+		    StartBacktrack(pref);
+		}
 	    }
 	}
 	SRtotal += SRcount;
