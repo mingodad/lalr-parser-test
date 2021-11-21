@@ -477,6 +477,7 @@ keywords[] = {
 #endif
     { "nonassoc",    NONASSOC },
     { "parse-param", PARSE_PARAM },
+    { "precedence",  PRECEDENCE },
     { "pure-parser", PURE_PARSER },
     { "right",       RIGHT },
     { "start",       START },
@@ -1850,6 +1851,7 @@ read_declarations(void)
 	case LEFT:
 	case RIGHT:
 	case NONASSOC:
+	case PRECEDENCE:
 	    declare_tokens(k);
 	    break;
 
@@ -4143,6 +4145,7 @@ print_symbol_prec_assoc_commented(FILE *out, int prec, Value_t assoc)
         case LEFT: assoc_chr = 'L'; break;
         case RIGHT: assoc_chr = 'R'; break;
         case NONASSOC: assoc_chr = 'N'; break;
+        case PRECEDENCE: assoc_chr = 'P'; break;
         default:
             assoc_chr = 'U';
     }
@@ -4172,6 +4175,10 @@ get_prec_name(int sym_id) {
 
         case NONASSOC:
             assoc_name = "nonassoc";
+            break;
+
+        case PRECEDENCE:
+            assoc_name = "precedence";
             break;
 
         default:

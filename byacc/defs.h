@@ -116,6 +116,7 @@ typedef enum
     ,LEFT
     ,RIGHT
     ,NONASSOC
+    ,PRECEDENCE
     ,MARK
     ,TEXT
     ,TYPE
