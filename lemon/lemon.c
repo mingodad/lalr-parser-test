@@ -491,6 +491,7 @@ struct lemon {
 const char *Strsafe(struct lemon *, const char *);
 
 void Strsafe_init(struct lemon *);
+void Strsafe_deinit(struct lemon *);
 int Strsafe_insert(struct lemon *, const char *);
 const char *Strsafe_find(struct lemon *, const char *);
 
@@ -499,6 +500,7 @@ const char *Strsafe_find(struct lemon *, const char *);
 struct symbol *Symbol_new(struct lemon *, const char *);
 int Symbolcmpp(const void *, const void *);
 void Symbol_init(struct lemon *);
+void Symbol_deinit(struct lemon *);
 int Symbol_insert(struct lemon *, struct symbol *, const char *);
 struct symbol *Symbol_find(struct lemon *, const char *);
 struct symbol *Symbol_Nth(struct lemon *, int);
@@ -510,6 +512,7 @@ struct symbol **Symbol_arrayof(struct lemon *);
 int Configcmp(const char *, const char *);
 struct state *State_new();
 void State_init(struct lemon *lem);
+void State_deinit(struct lemon *lem);
 int State_insert(struct lemon *lem, struct state *, struct config *);
 struct state *State_find(struct lemon *lem, struct config *);
 struct state **State_arrayof(struct lemon *lem);
@@ -517,6 +520,7 @@ struct state **State_arrayof(struct lemon *lem);
 /* Routines used for efficiency in Configlist_add */
 
 void Configtable_init(struct lemon *lem);
+void Configtable_deinit(struct lemon *lem);
 int Configtable_insert(struct lemon *lem, struct config *);
 struct config *Configtable_find(struct lemon *lem, struct config *);
 void Configtable_clear(struct lemon *lem, int(*)(struct config *));
@@ -1859,6 +1863,17 @@ int main(int argc, char **argv){
 
   /* return 0 on success, 1 on failure. */
   exitcode = ((lem.errorcnt > 0) || (lem.nconflict != nexpect)) ? 1 : 0;
+
+  /*Cleanup*/
+  if(lem.plink_freelist) {
+    //free(lem.plink_freelist);
+    Configtable_deinit(&lem);
+    State_deinit(&lem);
+    Symbol_deinit(&lem);
+    Strsafe_deinit(&lem);
+    free(lem.outname);
+  }
+
   exit(exitcode);
   return (exitcode);
 }
@@ -4167,6 +4182,10 @@ PRIVATE char *append_str(StrAppendBuffer *sa_buf, const char *zText, int n, int 
   return sa_buf->z;
 }
 
+PRIVATE char *free_StrAppendBuffer(StrAppendBuffer *sa_buf){
+    free(sa_buf->z);
+}
+
 /*
 ** Write and transform the rp->code string so that symbols are expanded.
 ** Populate the rp->codePrefix and rp->codeSuffix strings, as appropriate.
@@ -4365,6 +4384,7 @@ PRIVATE int translate_code(struct lemon *lemp, struct rule *rp){
     rp->codeSuffix = Strsafe(lemp, cp);
     rp->noCode = 0;
   }
+  free_StrAppendBuffer(&sa_buf);
 
   return rc;
 }
@@ -5822,6 +5842,16 @@ void Strsafe_init(struct lemon *lemp){
     }
   }
 }
+void Strsafe_deinit(struct lemon *lemp)
+{
+    if( lemp->x1a ) {
+        for(int i=0, imax=lemp->x1a->count; i < imax; ++i) {
+            free((char*)lemp->x1a->tbl[i].data);
+        }
+        free(lemp->x1a->tbl);
+        free(lemp->x1a);
+    }
+}
 /* Insert a new record into the array.  Return TRUE if successful.
 ** Prior data with the same key is NOT overwritten */
 int Strsafe_insert(struct lemon *lemp, const char *data)
@@ -5988,6 +6018,18 @@ void Symbol_init(struct lemon *lem){
     }
   }
 }
+
+void Symbol_deinit(struct lemon *lemp)
+{
+    if( lemp->x2a ) {
+        for(int i=0, imax=lemp->x2a->count; i < imax; ++i) {
+            free(lemp->x2a->tbl[i].data);
+        }
+        free(lemp->x2a->tbl);
+        free(lemp->x2a);
+    }
+}
+
 /* Insert a new record into the array.  Return TRUE if successful.
 ** Prior data with the same key is NOT overwritten */
 int Symbol_insert(struct lemon *lem, struct symbol *data, const char *key)
@@ -6184,6 +6226,15 @@ void State_init(struct lemon *lem){
     }
   }
 }
+void State_deinit(struct lemon *lemp){
+    if(lemp->x3a) {
+        for(int i=0, imax=lemp->x3a->count; i < imax; ++i) {
+            free(lemp->x3a->tbl[i].data);
+        }
+        free(lemp->x3a->tbl);
+        free(lemp->x3a);
+    }
+}
 /* Insert a new record into the array.  Return TRUE if successful.
 ** Prior data with the same key is NOT overwritten */
 int State_insert(struct lemon *lem, struct state *data, struct config *key)
@@ -6320,6 +6371,17 @@ void Configtable_init(struct lemon *lem){
       for(i=0; i<64; i++) lem->x4a->ht[i] = 0;
     }
   }
+}
+void Configtable_deinit(struct lemon *lemp){
+    if( lemp->x4a ) {
+        for(int i=0, imax=lemp->x4a->count; i < imax; ++i) {
+            if(lemp->x4a->tbl[i].data) {
+                free(lemp->x4a->tbl[i].data);
+            }
+        }
+        free(lemp->x4a->tbl);
+        free(lemp->x4a);
+    }
 }
 /* Insert a new record into the array.  Return TRUE if successful.
 ** Prior data with the same key is NOT overwritten */
