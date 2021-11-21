@@ -3382,17 +3382,46 @@ void Reprint_token_numbers(struct lemon *lemp)
   }
 }
 
-void Reprint_tokens(struct lemon *lemp, const char *terminator)
+void Reprint_tokens(struct lemon *lemp, const char *terminator, int isYacc)
 {
-  struct symbol *sp;
-  int i, j, idxRule, skip;
-  for(i=0; i<lemp->nsymbol; i++){
+  struct symbol *sp, *sp_fb;
+  int i, b, j, idxRule, skip;
+  for(i=0, b=0; i<lemp->nsymbol; i++){
     sp = lemp->symbols[i];
     if(sp->type == TERMINAL) {
-        printf("%%token %s%s\n", sp->name, terminator);
+        if(b==0) {
+            printf("%%token ");
+        }
+        printf(" %s", sp->name);
+        ++b;
+        if((b%6) == 0)
+            printf("\n ");
     }
   }
+  if(b>0)
+      printf("%s\n", terminator);
   printf("\n");
+
+  if(!isYacc) {
+    for(i=0, b=0, sp_fb=NULL; i<lemp->nsymbol; i++){
+      sp = lemp->symbols[i];
+      if(sp->fallback && sp->type == TERMINAL) {
+          if(sp_fb!=sp->fallback) {
+              printf("%s\n%%fallback %s\n ", (b>0) ? terminator : "",
+                      sp->fallback->name);
+              sp_fb=sp->fallback;
+          }
+          printf(" %s", sp->name);
+          ++b;
+          if((b%6) == 0)
+              printf("\n ");
+      }
+    }
+    if(b>0)
+        printf("%s\n", terminator);
+    printf("\n");
+  }
+
   for(j=0; j<=lemp->preccounter; ++j){
     skip = 0;
     for(i=0; i<lemp->nsymbol; i++){
@@ -3442,8 +3471,16 @@ void Reprint(struct lemon *lemp)
   /*struct rule **array;*/
   int i, j, idxRule, skip;
   Reprint_token_numbers(lemp);
-  Reprint_tokens(lemp, " .");
-  printf("\n%%start_symbol %s\n\n", lemp->start);
+  Reprint_tokens(lemp, " .", 0);
+  if(lemp->stacksize) {
+    printf("\n%%stack_size %s .\n", lemp->stacksize);
+  }
+
+  if(lemp->wildcard) {
+    printf("\n%%wildcard %s .\n", lemp->wildcard->name);
+  }
+
+  printf("\n%%start_symbol %s\n\n", lemp->startRule->lhs->name);
 
   for(rp=lemp->rule, prev_rp=NULL; rp; prev_rp=rp, rp=rp->next){
     if(prev_rp && strcmp(prev_rp->lhs->name, rp->lhs->name))
@@ -3549,7 +3586,7 @@ void Reprint_yacc(struct lemon *lemp)
   int i, j, k, idxRule, skip;
   char *idList;
   Reprint_token_numbers(lemp);
-  Reprint_tokens(lemp, "");
+  Reprint_tokens(lemp, "", 1);
   printf("\n%%start %s\n\n%%%%\n\n", lemp->startRule->lhs->name);
 
   for(rp=lemp->rule, prev_rp=NULL; rp; prev_rp=rp, rp=rp->next){
