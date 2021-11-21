@@ -221,8 +221,9 @@ void Plink_delete(struct lemon *, struct plink *);
 /********** From the file "report.h" *************************************/
 void Reprint(struct lemon *);
 void Reprint_yacc(struct lemon *);
+void ReportSQL(struct lemon *);
 void ReportOutput(struct lemon *);
-void ReportTable(struct lemon *, int, int);
+void ReportTable(struct lemon *, int);
 void ReportHeader(struct lemon *);
 void CompressTables(struct lemon *);
 void ResortStates(struct lemon *);
@@ -1774,9 +1775,14 @@ int main(int argc, char **argv){
   /* Generate a reprint of the grammar, if requested on the command line */
   if( rpflag ){
     Reprint(&lem);
-  } else if( rpyflag ){
+  }
+  if( rpyflag ){
     Reprint_yacc(&lem);
-  } else if( rpyflag2 ){
+  }
+  if( sqlFlag ){
+    ReportSQL(&lem);
+  }
+  if( rpyflag2 ){
     /* First find all rules precedence for a full precedence dump */
     FindRulePrecedences(&lem);
     Reprint_yacc(&lem);
@@ -1822,7 +1828,7 @@ int main(int argc, char **argv){
     if( !quiet ) ReportOutput(&lem);
 
     /* Generate the source code for the parser */
-    ReportTable(&lem, mhflag, sqlFlag);
+    ReportTable(&lem, mhflag);
 
     /* Produce a header file for use by the scanner.  (This step is
     ** omitted if the "-m" option is used because makeheaders will
@@ -4573,21 +4579,283 @@ static void writeRuleText(FILE *out, struct rule *rp){
   }
 }
 
+/* Generate SQL code for the grammar */
+void ReportSQL(
+  struct lemon *lemp
+){
+  FILE *sql;
+  struct rule *rp;
+  int b, i, j, first_symbol;
+
+  sql = file_open(lemp, ".sql", "wb");
+
+  fprintf(sql,
+    "BEGIN;\n"
+    "CREATE TABLE symbol(\n"
+    "  id INTEGER PRIMARY KEY,\n"
+    "  name TEXT NOT NULL,\n"
+    "  isTerminal BOOLEAN NOT NULL,\n"
+    "  fallback INTEGER REFERENCES symbol"
+            " DEFERRABLE INITIALLY DEFERRED\n"
+    ");\n"
+  );
+  first_symbol = 1; /* start from 1 to skip $ */
+  for(i=first_symbol; i<lemp->nsymbol; i++){
+    struct symbol *sp = lemp->symbols[i];
+    if(i==first_symbol) {
+      fprintf(sql,
+         "INSERT INTO symbol(id,name,isTerminal,fallback)"
+         " VALUES\n");
+    }
+    fprintf(sql,
+       " %s(%d,'%s',%s",
+       (i > first_symbol) ? "," : " ", i, sp->name,
+       i<lemp->nterminal ? "TRUE" : "FALSE"
+    );
+    if( sp->fallback ){
+      fprintf(sql, ",%d)\n", sp->fallback->index);
+    }else{
+      fprintf(sql, ",NULL)\n");
+    }
+  }
+  if(i>first_symbol) fprintf(sql, " ;\n");
+
+  fprintf(sql,
+    "CREATE TABLE precedence(\n"
+    "  id INTEGER PRIMARY KEY REFERENCES symbol"
+            " DEFERRABLE INITIALLY DEFERRED,\n"
+    "  prec INTEGER NOT NULL,\n"
+    "  assoc CHAR NOT NULL CHECK(assoc IN('L','R','N','P'))\n"
+    ");\n"
+  );
+  for(i=0, b=0; i<lemp->nsymbol; i++){
+    struct symbol *sp = lemp->symbols[i];
+    if(sp->prec > 0) {
+      if(b==0) {
+          fprintf(sql,
+             "INSERT INTO precedence(id,prec,assoc)"
+             " VALUES\n");
+      }
+      fprintf(sql,
+         " %s(%d,%d,'%c')",
+         (b > 0) ? "," : " ", i, sp->prec, get_symbol_prec_chr(sp)
+      );
+      ++b;
+      if((b%4) == 0) fprintf(sql, "\n");
+    }
+  }
+  if(b>0) fprintf(sql, " ;\n");
+#if 0
+  fprintf(sql,
+    "CREATE TABLE first_sets(\n"
+    "  id INTEGER PRIMARY KEY,\n"
+    "  nterminal INTEGER REFERENCES symbol"
+            " DEFERRABLE INITIALLY DEFERRED,\n"
+    "  terminal INTEGER REFERENCES symbol"
+            " DEFERRABLE INITIALLY DEFERRED,\n"
+    "  unique(nterminal, terminal)\n"
+    ");\n"
+  );
+  for(i=0, b=0; i<lemp->nsymbol; i++){
+    struct symbol *sp = lemp->symbols[i];
+    if(sp->type == NONTERMINAL) {
+      for(j=0; j<lemp->nterminal; j++){
+        if( sp->firstset && SetFind(sp->firstset, j) ){
+          if(b==0) {
+            fprintf(sql,
+               "INSERT INTO first_sets(nterminal,terminal)"
+               " VALUES\n");
+          }
+          fprintf(sql, " %s(%d,%d)", (b > 0) ? "," : " ", i, j);
+          ++b;
+          if((b%6) == 0) fprintf(sql, "\n");
+        }
+      }
+    }
+  }
+  if(b>0) fprintf(sql, " ;\n");
+#endif
+  fprintf(sql,
+    "CREATE TABLE rule(\n"
+    "  ruleid INTEGER PRIMARY KEY,\n"
+    "  lhs INTEGER REFERENCES symbol(id),\n"
+    "  prec_id INTEGER REFERENCES symbol(id)\n"
+    ");\n"
+  );
+  for(b=0, rp=lemp->rule; rp; rp=rp->next){
+    if(b==0) {
+      fprintf(sql,
+        "INSERT INTO rule(ruleid,lhs,prec_id) VALUES\n");
+    }
+    fprintf(sql,
+      " %s(%d,%d,",
+      (b > 0) ? "," : " ", rp->index, rp->lhs->index
+    );
+    if(rp->precsym_decl) {
+        fprintf(sql,"%d)", rp->precsym->index);
+    }
+    else fprintf(sql,"NULL)");
+    //writeRuleText(sql, rp);
+    if((b%4) == 0) fprintf(sql, "\n");
+    ++b;
+  }
+  if(b>0) fprintf(sql, " ;\n");
+
+  fprintf(sql,
+    "CREATE TABLE directives(\n"
+    "  id INTEGER PRIMARY KEY CHECK(id = 1),"
+    "  stack_size TEXT,\n"
+    "  start_symbol INTEGER REFERENCES symbol,\n"
+    "  wildcard INTEGER REFERENCES symbol\n"
+    ");\n"
+    "INSERT INTO directives(id) values(1);\n"
+  );
+
+  fprintf(sql,
+    "UPDATE directives SET start_symbol=%d;\n",
+        lemp->startRule->lhs->index
+  );
+
+  if(lemp->stacksize) {
+    fprintf(sql,
+      "UPDATE directives SET stacksize='%s';\n",
+          lemp->stacksize
+    );
+  }
+
+  if(lemp->wildcard) {
+    fprintf(sql,
+      "UPDATE directives SET wildcard=%d;\n",
+          lemp->wildcard->index
+    );
+  }
+
+  fprintf(sql,
+    "CREATE TABLE rulerhs(\n"
+    "  id INTEGER PRIMARY KEY,"
+    "  ruleid INTEGER REFERENCES rule(ruleid),\n"
+    "  pos INTEGER,\n"
+    "  sym INTEGER REFERENCES symbol(id)\n"
+    ");\n"
+  );
+  for(b=0, rp=lemp->rule; rp; rp=rp->next){
+    for(j=0; j<rp->nrhs; j++){
+      struct symbol *sp = rp->rhs[j];
+      if(b==0) {
+        fprintf(sql,
+          "INSERT INTO rulerhs(ruleid,pos,sym) VALUES\n");
+      }
+      if( sp->type==MULTITERMINAL ){
+        int k;
+        for(k=0; k<sp->nsubsym; k++){
+          fprintf(sql,
+            " %s(%d,%d,%d)",
+            (b > 0) ? "," : " ", rp->index,j,sp->subsym[k]->index
+          );
+          ++b;
+          if((b%5) == 0) fprintf(sql, "\n");
+        }
+      }else{
+        fprintf(sql,
+          " %s(%d,%d,%d)",
+          (b > 0) ? "," : " ", rp->index,j,sp->index
+        );
+        ++b;
+        if((b%5) == 0) fprintf(sql, "\n");
+      }
+    }
+  }
+  if(b>0) fprintf(sql, " ;\n");
+
+  fprintf(sql,
+    "CREATE VIEW rule_rhs_terminal_view AS\n"
+    "SELECT rr.ruleid, pos, group_concat(rs.name, '|') as name\n"
+    "FROM rulerhs AS rr LEFT JOIN symbol AS rs\n"
+    "  ON rr.sym=rs.id\n"
+    "GROUP BY ruleid, pos;\n"
+    "CREATE VIEW rule_view AS\n"
+    "SELECT srule || (case when lhs <> lhs2 then '\n"
+    "' else '' end) FROM (\n"
+    "  SELECT s.name || ' ::= ' || ifnull((\n"
+    "    SELECT group_concat(rs.name, ' ')\n"
+    "    FROM rule_rhs_terminal_view AS rs\n"
+    "    WHERE rs.ruleid=r.ruleid\n"
+    "    ORDER BY rs.pos), '/*empty*/') || ' .'\n"
+    "      || ifnull((' [' || sp.name || ']'), '') as srule,\n"
+    "    r.lhs, lead(r.lhs) OVER(ORDER BY r.ruleid) AS lhs2\n"
+    "  FROM rule AS r\n"
+    "    LEFT JOIN symbol AS s ON r.lhs=s.id\n"
+    "    LEFT JOIN symbol AS sp ON r.prec_id=sp.id\n"
+    "  ORDER BY r.ruleid\n"
+    ") t;\n"
+    "CREATE VIEW token_view AS\n"
+    "SELECT ('%%token ' || '\n"
+    "  ' || group_concat(name || (CASE WHEN (cnt %% 6) = 0 THEN '\n"
+    "  ' ELSE ' ' END), '') || ' .\n"
+    "  ') AS val FROM (\n"
+    "  SELECT row_number() OVER (ORDER BY s.id) AS cnt, s.name\n"
+    "  FROM symbol AS s WHERE isTerminal=TRUE\n"
+    "  ORDER BY id\n"
+    ") t;\n"
+    "CREATE VIEW fallback_view AS\n"
+    "SELECT ('%%fallback ' || fb || '\n"
+    "  ' || group_concat(name || (CASE WHEN (cnt %% 6) = 0 THEN '\n"
+    "  ' ELSE ' ' END), '') || ' .\n"
+    "  ') AS val FROM (\n"
+    "  SELECT sf.name AS fb, row_number() OVER (ORDER BY s.id) AS cnt, s.name\n"
+    "  FROM symbol s JOIN symbol sf ON s.fallback = sf.id\n"
+    ") t;\n"
+    "CREATE VIEW prec_view AS\n"
+    "WITH prec(id, name) AS (VALUES('L','%%left'),('R','%%right'),('N','%%nonassoc'),('P','%%precedence'))\n"
+    "SELECT prec.name || ' ' || group_concat(s.name, ' ') || ' .'\n"
+    "FROM precedence AS p\n"
+    "	LEFT JOIN prec ON p.assoc=prec.id\n"
+    "	LEFT JOIN symbol AS s on p.id=s.id\n"
+    "GROUP BY p.prec\n"
+    "ORDER BY p.prec;\n"
+    "CREATE VIEW grammar_view AS\n"
+    "SELECT * FROM token_view\n"
+    "UNION ALL\n"
+    "SELECT * FROM fallback_view\n"
+    "UNION ALL\n"
+    "SELECT * FROM prec_view\n"
+    "UNION ALL\n"
+    "SELECT '\n"
+    "%%stack_size ' || stack_size || ' .\n"
+    "'\n"
+    "FROM directives\n"
+    "UNION ALL\n"
+    "SELECT '\n"
+    "%%wildcard ' || s.name || ' .\n"
+    "'\n"
+    "FROM directives AS d join symbol AS s ON d.wildcard=s.id\n"
+    "UNION ALL\n"
+    "SELECT '\n"
+    "%%start_symbol ' || s.name || '\n"
+    "'\n"
+    "FROM directives AS d join symbol AS s ON d.start_symbol=s.id\n"
+    "UNION ALL\n"
+    "SELECT * FROM rule_view;\n"
+
+    "COMMIT;\n"
+    "--select * from grammar_view;\n"
+  );
+  fclose(sql);
+}
 
 /* Generate C source code for the parser */
 void ReportTable(
   struct lemon *lemp,
-  int mhflag,     /* Output in makeheaders format if true */
-  int sqlFlag     /* Generate the *.sql file too */
+  int mhflag     /* Output in makeheaders format if true */
 ){
-  FILE *out, *in, *sql;
+  FILE *out, *in;
   char line[LINESIZE];
   int  lineno;
   struct state *stp;
   struct action *ap;
   struct rule *rp;
   struct acttab *pActtab;
-  int b, i, j, n, sz, first_symbol;
+  int b, i, j, n, sz;
   int nLookAhead;
   int szActionType;     /* sizeof(YYACTIONTYPE) */
   int szCodeType;       /* sizeof(YYCODETYPE)   */
@@ -4610,221 +4878,6 @@ void ReportTable(
   if( out==0 ){
     fclose(in);
     return;
-  }
-  if( sqlFlag==0 ){
-    sql = 0;
-  }else{
-    sql = file_open(lemp, ".sql", "wb");
-    if( sql==0 ){
-      fclose(in);
-      fclose(out);
-      return;
-    }
-    fprintf(sql,
-       "BEGIN;\n"
-       "CREATE TABLE symbol(\n"
-       "  id INTEGER PRIMARY KEY,\n"
-       "  name TEXT NOT NULL,\n"
-       "  isTerminal BOOLEAN NOT NULL,\n"
-       "  fallback INTEGER REFERENCES symbol"
-               " DEFERRABLE INITIALLY DEFERRED\n"
-       ");\n"
-    );
-    first_symbol = 1; /* start from 1 to skip $ */
-    for(i=first_symbol; i<lemp->nsymbol; i++){
-      struct symbol *sp = lemp->symbols[i];
-      if(i==first_symbol) {
-        fprintf(sql,
-           "INSERT INTO symbol(id,name,isTerminal,fallback)"
-           " VALUES\n");
-      }
-      fprintf(sql,
-         " %s(%d,'%s',%s",
-         (i > first_symbol) ? "," : " ", i, sp->name,
-         i<lemp->nterminal ? "TRUE" : "FALSE"
-      );
-      if( sp->fallback ){
-        fprintf(sql, ",%d)\n", sp->fallback->index);
-      }else{
-        fprintf(sql, ",NULL)\n");
-      }
-    }
-    if(i>first_symbol) fprintf(sql, " ;\n");
-
-    fprintf(sql,
-       "CREATE TABLE precedence(\n"
-       "  id INTEGER PRIMARY KEY REFERENCES symbol"
-               " DEFERRABLE INITIALLY DEFERRED,\n"
-       "  prec INTEGER NOT NULL,\n"
-       "  assoc CHAR NOT NULL CHECK(assoc IN('L','R','N','P'))\n"
-       ");\n"
-    );
-    for(i=0, b=0; i<lemp->nsymbol; i++){
-      struct symbol *sp = lemp->symbols[i];
-      if(sp->prec > 0) {
-        if(b==0) {
-            fprintf(sql,
-               "INSERT INTO precedence(id,prec,assoc)"
-               " VALUES\n");
-        }
-        fprintf(sql,
-           " %s(%d,%d,'%c')",
-           (b > 0) ? "," : " ", i, sp->prec, get_symbol_prec_chr(sp)
-        );
-        ++b;
-        if((b%4) == 0) fprintf(sql, "\n");
-      }
-    }
-    if(b>0) fprintf(sql, " ;\n");
-#if 0
-    fprintf(sql,
-       "CREATE TABLE first_sets(\n"
-       "  id INTEGER PRIMARY KEY,\n"
-       "  nterminal INTEGER REFERENCES symbol"
-               " DEFERRABLE INITIALLY DEFERRED,\n"
-       "  terminal INTEGER REFERENCES symbol"
-               " DEFERRABLE INITIALLY DEFERRED,\n"
-       "  unique(nterminal, terminal)\n"
-       ");\n"
-    );
-    for(i=0, b=0; i<lemp->nsymbol; i++){
-      struct symbol *sp = lemp->symbols[i];
-      if(sp->type == NONTERMINAL) {
-        for(j=0; j<lemp->nterminal; j++){
-          if( sp->firstset && SetFind(sp->firstset, j) ){
-            if(b==0) {
-              fprintf(sql,
-                 "INSERT INTO first_sets(nterminal,terminal)"
-                 " VALUES\n");
-            }
-            fprintf(sql, " %s(%d,%d)", (b > 0) ? "," : " ", i, j);
-            ++b;
-            if((b%6) == 0) fprintf(sql, "\n");
-          }
-        }
-      }
-    }
-    if(b>0) fprintf(sql, " ;\n");
-#endif
-    fprintf(sql,
-      "CREATE TABLE rule(\n"
-      "  ruleid INTEGER PRIMARY KEY,\n"
-      "  lhs INTEGER REFERENCES symbol(id),\n"
-      "  prec_id INTEGER REFERENCES symbol(id)\n"
-      ");\n"
-    );
-    for(i=0, b=0, rp=lemp->rule; rp; rp=rp->next, i++){
-      assert( i==rp->iRule );
-      if(b==0) {
-        fprintf(sql,
-          "INSERT INTO rule(ruleid,lhs,prec_id) VALUES\n");
-      }
-      fprintf(sql,
-        " %s(%d,%d,",
-        (b > 0) ? "," : " ", rp->iRule, rp->lhs->index
-      );
-      if(rp->precsym_decl) {
-          fprintf(sql,"%d)", rp->precsym->index);
-      }
-      else fprintf(sql,"NULL)");
-      //writeRuleText(sql, rp);
-      if((b%4) == 0) fprintf(sql, "\n");
-      ++b;
-    }
-    if(b>0) fprintf(sql, " ;\n");
-
-    fprintf(sql,
-      "CREATE TABLE start_rule as\n"
-      "  select id, name from symbol where name = '%s';\n",
-            lemp->startRule->lhs->name
-    );
-
-    fprintf(sql,
-      "CREATE TABLE rulerhs(\n"
-      "  ruleid INTEGER REFERENCES rule(ruleid),\n"
-      "  pos INTEGER,\n"
-      "  sym INTEGER REFERENCES symbol(id)\n"
-      ");\n"
-    );
-    for(i=0, b=0, rp=lemp->rule; rp; rp=rp->next, i++){
-      assert( i==rp->iRule );
-      for(j=0; j<rp->nrhs; j++){
-        struct symbol *sp = rp->rhs[j];
-        if(b==0) {
-          fprintf(sql,
-            "INSERT INTO rulerhs(ruleid,pos,sym) VALUES\n");
-        }
-        if( sp->type==MULTITERMINAL ){
-          int k;
-          for(k=0; k<sp->nsubsym; k++){
-            fprintf(sql,
-              " %s(%d,%d,%d)",
-              (b > 0) ? "," : " ", i,j,sp->subsym[k]->index
-            );
-            ++b;
-            if((b%5) == 0) fprintf(sql, "\n");
-          }
-        }else{
-          fprintf(sql,
-            " %s(%d,%d,%d)",
-            (b > 0) ? "," : " ", i,j,sp->index
-          );
-          ++b;
-          if((b%5) == 0) fprintf(sql, "\n");
-        }
-      }
-    }
-    if(b>0) fprintf(sql, " ;\n");
-
-    fprintf(sql,
-      "CREATE VIEW rule_rhs_terminal_view AS\n"
-      "SELECT rr.ruleid, pos, group_concat(rs.name, '|') as name\n"
-      "FROM rulerhs AS rr LEFT JOIN symbol AS rs\n"
-      "  ON rr.sym=rs.id\n"
-      "GROUP BY ruleid, pos;\n"
-      "CREATE VIEW rule_view AS\n"
-      "SELECT s.name || ' ::= ' || ifnull((\n"
-      "  SELECT group_concat(rs.name, ' ')\n"
-      "  FROM rule_rhs_terminal_view AS rs\n"
-      "  WHERE rs.ruleid=r.ruleid\n"
-      "  ORDER BY rs.pos), '/*empty*/') || ' .'\n"
-      "    || ifnull((' [' || sp.name || ']'), '')\n"
-      "FROM rule AS r\n"
-      "  LEFT JOIN symbol AS s ON r.lhs=s.id\n"
-      "  LEFT JOIN symbol AS sp ON r.prec_id=sp.id\n"
-      "ORDER BY r.ruleid;\n"
-      "CREATE VIEW token_view AS\n"
-      "SELECT ('%%token ' || name || ' .') AS tk\n"
-      "FROM symbol WHERE isTerminal=TRUE\n"
-      "ORDER BY id;\n"
-      "CREATE VIEW fallback_view AS\n"
-      "SELECT ('%%fallback ' || sf.name || '\n"
-      "  ' || group_concat(s.name, ' ') || '\n"
-      "  .') AS fb\n"
-      "FROM symbol s JOIN symbol sf ON s.fallback = sf.id;\n"
-      "CREATE VIEW prec_view AS\n"
-      "WITH prec(id, name) AS (VALUES('L','%%left'),('R','%%right'),('N','%%nonassoc'),('P','%%precedence'))\n"
-      "SELECT prec.name || ' ' || group_concat(s.name, ' ') || ' .'\n"
-      "FROM precedence AS p\n"
-      "	LEFT JOIN prec ON p.assoc=prec.id\n"
-      "	LEFT JOIN symbol AS s on p.id=s.id\n"
-      "GROUP BY p.prec\n"
-      "ORDER BY p.prec;\n"
-      "CREATE VIEW grammar_view AS\n"
-      "SELECT * FROM token_view\n"
-      "UNION ALL\n"
-      "SELECT * FROM fallback_view\n"
-      "UNION ALL\n"
-      "SELECT * FROM prec_view\n"
-      "UNION ALL\n"
-      "SELECT '%%start_symbol ' || name\n"
-      "FROM start_rule\n"
-      "UNION ALL\n"
-      "SELECT * FROM rule_view;\n"
-
-      "COMMIT;\n"
-      "--select * from grammar_view;\n"
-    );
   }
   lineno = 1;
 
@@ -5373,7 +5426,6 @@ void ReportTable(
   acttab_free(pActtab);
   fclose(in);
   fclose(out);
-  if( sql ) fclose(sql);
   return;
 }
 
