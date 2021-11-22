@@ -4367,12 +4367,30 @@ print_grammar_naked(void)
     fprintf(f, "\t;\n"); /*last rule*/
 }
 
+static const char *escape_sql(char64_t *buf, const char *tkname)
+{
+    int i, i2;
+    for(i=0, i2 = 0; i<(sizeof(char64_t)-1) && tkname[i2]; ++i, ++i2) {
+        switch(tkname[i2]) {
+            case '\'':
+                (*buf)[i++] = tkname[i2];
+                (*buf)[i] = tkname[i2];
+                break;
+            default:
+            (*buf)[i] = tkname[i2];
+        }
+    }
+    (*buf)[i] = '\0';
+    return *buf;
+}
+
 static void
 print_grammar_sql(void)
 {
     int b, i, j, k;
     FILE *f = sql_file;
     bucket *bp;
+    char64_t buf;
 
     if (!sql_flag)
 	return;
@@ -4400,7 +4418,7 @@ print_grammar_sql(void)
                 }
                 fprintf(f,
                    " %s(%d,'%s',%s)\n",
-                   (b>0) ? "," : " ", bp->index, bp->name,
+                   (b>0) ? "," : " ", bp->index, escape_sql(&buf, bp->name),
                    (bp->class == TERM) ? "TRUE" : "FALSE"
                 );
                 ++b;
