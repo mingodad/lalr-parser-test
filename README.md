@@ -13,6 +13,7 @@ The byacc parser (from https://invisible-island.net/byacc/byacc.html) here have 
 - Command line option to print naked yacc `-n                            generate naked grammar`
 - Command line option to convert from yacc grammar to lemon grammar `-E                    write lemon grammar`
 - Command line option to convert from yacc grammar to EBNF grammar (understood by https://www.bottlecaps.de/rr/ui) `-e                    write ebnf grammar`
+- Command line option to output SQL from yacc grammar `-S                    write grammar as sql`
 - Command line option to ignore all precedences `-u                    ignore precedences`
 - Command line option to use lemon rule precedences `-z                    use leftmost token for rule precedence`
 - Add code to accept/skip bison styles alias for non-terminals `rule[alias]` 
