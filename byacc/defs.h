@@ -105,6 +105,7 @@
 #define	LEMON_SUFFIX	".yl"
 #define GRAPH_SUFFIX    ".dot"
 #define NAKED_SUFFIX    ".yn"
+#define SQL_SUFFIX      ".sql"
 #define VERBOSE_RULE_POINT_CHAR    '*'
 #define RULE_NUM_OFFSET 2
 
@@ -234,6 +235,7 @@ struct bucket
     Value_t prec;
     Class_t class;
     Assoc_t assoc;
+    int prec_on_decl;
 };
 
 /*  the structure of the LR(0) state machine  */
@@ -311,6 +313,7 @@ extern char lemon_flag;
 extern char lemon_prec_flag;
 extern char ignore_prec_flag;
 extern char naked_flag;
+extern char sql_flag;
 extern const char *symbol_prefix;
 
 extern const char *myname;
@@ -361,6 +364,7 @@ extern FILE *verbose_file;
 extern FILE *ebnf_file;
 extern FILE *lemon_file;
 extern FILE *naked_file;
+extern FILE *sql_file;
 extern FILE *graph_file;
 
 extern Value_t nitems;

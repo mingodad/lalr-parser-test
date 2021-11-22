@@ -54,6 +54,7 @@ make_bucket(const char *name)
     bp->argtags = 0;
     bp->destructor = 0;
 #endif
+    bp->prec_on_decl = 0;
     strcpy(bp->name, name);
 
     return (bp);

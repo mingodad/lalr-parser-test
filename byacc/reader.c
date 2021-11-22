@@ -1638,6 +1638,7 @@ declare_tokens(int assoc)
 		reprec_warning(bp->name);
 	    bp->assoc = (Assoc_t)assoc;
 	    bp->prec = prec;
+	    bp->prec_on_decl = 1;
 	}
 
 	c = nextc();
@@ -4335,12 +4336,7 @@ print_grammar_naked(void)
 	    fprintf(f, "\t|");
 	}
 
-        if(!(ritem[k] >= 0)) {
-            if(!skip_rule)
-                fprintf(f, " /*empty*/");
-        }
-        else
-        {
+        if(ritem[k] >= 0) {
             while (ritem[k] >= 0)
             {
                 Value_t symbol = ritem[k];
@@ -4351,6 +4347,11 @@ print_grammar_naked(void)
                 }
                 ++k;
             }
+        }
+        else
+        {
+            if(!skip_rule)
+                fprintf(f, " /*empty*/");
         }
 	++k;
         if(!skip_rule) {
@@ -4364,6 +4365,218 @@ print_grammar_naked(void)
         }
     }
     fprintf(f, "\t;\n"); /*last rule*/
+}
+
+static void
+print_grammar_sql(void)
+{
+    int b, i, j, k;
+    FILE *f = sql_file;
+    bucket *bp;
+
+    if (!sql_flag)
+	return;
+
+    fprintf(f,
+        "BEGIN;\n"
+        "CREATE TABLE symbol(\n"
+        "  id INTEGER PRIMARY KEY,\n"
+        "  name TEXT NOT NULL,\n"
+        "  isTerminal BOOLEAN NOT NULL,\n"
+        "  fallback INTEGER REFERENCES symbol"
+                " DEFERRABLE INITIALLY DEFERRED\n"
+        ");\n"
+    );
+
+    for (bp = first_symbol, b = 0; bp; bp = bp->next)
+    {
+        switch(bp->class) {
+            case TERM:
+            case NONTERM:
+                if(b==0) {
+                  fprintf(f,
+                     "INSERT INTO symbol(id,name,isTerminal)"
+                     " VALUES\n");
+                }
+                fprintf(f,
+                   " %s(%d,'%s',%s)\n",
+                   (b>0) ? "," : " ", bp->index, bp->name,
+                   (bp->class == TERM) ? "TRUE" : "FALSE"
+                );
+                ++b;
+                break;
+        }
+    }
+    if(b>0) fprintf(f, " ;\n");
+    fprintf(f, "\n");
+
+    fprintf(f,
+        "CREATE TABLE precedence(\n"
+        "  id INTEGER PRIMARY KEY REFERENCES symbol"
+                " DEFERRABLE INITIALLY DEFERRED,\n"
+        "  prec INTEGER NOT NULL,\n"
+        "  assoc CHAR NOT NULL CHECK(assoc IN('L','R','N','P'))\n"
+        ");\n"
+    );
+
+    for (k = 0, b = 0; k <= prec; ++k) {
+        for (i = 0; i < ntokens; ++i)
+        {
+            Value_t prec = symbol_prec[i];
+            if(prec == k && prec > 0) {
+                const char *sym_name = symbol_name[i];
+                if(sym_name[0] != '$') {
+                    if(b==0) {
+                        fprintf(f,
+                           "INSERT INTO precedence(id,prec,assoc)"
+                           " VALUES\n");
+                    }
+                    const char *assoc_name = get_prec_name(i);
+                    fprintf(f,
+                       " %s(%d,%d,'%c')",
+                       (b > 0) ? "," : " ", i, prec, toupper(assoc_name[0])
+                    );
+                    ++b;
+                    if((b%4) == 0) fprintf(f, "\n");
+                }
+            }
+        }
+    }
+    if(b>0) fprintf(f, " ;\n");
+    fprintf(f, "\n");
+
+    fprintf(f,
+        "CREATE TABLE rule(\n"
+        "  ruleid INTEGER PRIMARY KEY,\n"
+        "  lhs INTEGER REFERENCES symbol(id),\n"
+        "  prec_id INTEGER REFERENCES symbol(id)\n"
+        ");\n"
+    );
+
+    for (i = START_RULE_IDX, b = 0; i < nrules; ++i)
+    {
+        const char *sym_name = symbol_name[rlhs[i]];
+        if(sym_name[0] != '$') {
+            if(b==0) {
+              fprintf(f,
+                "INSERT INTO rule(ruleid,lhs,prec_id) VALUES\n");
+            }
+            fprintf(f,
+              " %s(%d,%d,",
+              (b > 0) ? "," : " ", i, rlhs[i]
+            );
+            bucket *prec_bucket = rprec_bucket[i];
+            if(prec_bucket && prec_bucket->prec_on_decl) {
+                fprintf(f,"%d)", prec_bucket->index);
+            }
+            else fprintf(f,"NULL)");
+            ++b;
+            if((b%4) == 0) fprintf(f, "\n");
+        }
+    }
+    if(b>0) fprintf(f, " ;\n");
+    fprintf(f, "\n");
+
+    fprintf(f,
+        "CREATE TABLE directives(\n"
+        "  id INTEGER PRIMARY KEY CHECK(id = 1),"
+        "  stack_size TEXT,\n"
+        "  start_symbol INTEGER REFERENCES symbol,\n"
+        "  wildcard INTEGER REFERENCES symbol\n"
+        ");\n"
+        "INSERT INTO directives(id) values(1);\n"
+    );
+
+    fprintf(f,
+        "UPDATE directives SET start_symbol=%d;\n",
+            goal->index
+    );
+    
+    fprintf(f,
+        "CREATE TABLE rulerhs(\n"
+        "  id INTEGER PRIMARY KEY,"
+        "  ruleid INTEGER REFERENCES rule(ruleid),\n"
+        "  pos INTEGER,\n"
+        "  sym INTEGER REFERENCES symbol(id)\n"
+        ");\n"
+    );
+    
+    k = 1;
+    for (i = START_RULE_IDX, b = 0; i < nrules; ++i)
+    {
+        const char *sym_name = symbol_name[rlhs[i]];
+        int skip_rule = sym_name[0] == '$';
+        j = 0;
+        while (ritem[k] >= 0)
+        {
+            Value_t symbol = ritem[k];
+            sym_name = symbol_name[symbol];
+            if(!skip_rule && sym_name[0] != '$') {
+                if(b==0) {
+                  fprintf(f,
+                    "INSERT INTO rulerhs(ruleid,pos,sym) VALUES\n");
+                }
+                fprintf(f,
+                  " %s(%d,%d,%d)",
+                  (b > 0) ? "," : " ", i, j++, symbol
+                );
+                ++b;
+                if((b%5) == 0) fprintf(f, "\n");
+            }
+            ++k;
+        }
+        ++k;
+    }
+    if(b>0) fprintf(f, " ;\n");
+    fprintf(f, "\n");
+
+    fprintf(f,
+        "CREATE VIEW rule_view AS\n"
+        "SELECT srule || (case when lhs <> lhs2 then '\n"
+        "' else '' end) FROM (\n"
+        "  SELECT s.name || ' : ' || ifnull((\n"
+        "    SELECT group_concat(rs.name, ' ')\n"
+        "    FROM rulerhs AS rr LEFT JOIN symbol AS rs ON rr.sym=rs.id\n"
+        "    WHERE rr.ruleid=r.ruleid\n"
+        "    ORDER BY rr.pos), '/*empty*/')\n"
+        "      || ifnull((' %%prec ' || sp.name), '') || ' ;' as srule,\n"
+        "    r.lhs, lead(r.lhs) OVER(ORDER BY r.ruleid) AS lhs2\n"
+        "  FROM rule AS r\n"
+        "    LEFT JOIN symbol AS s ON r.lhs=s.id\n"
+        "    LEFT JOIN symbol AS sp ON r.prec_id=sp.id\n"
+        "  ORDER BY r.ruleid\n"
+        ") t;\n"
+        "CREATE VIEW token_view AS\n"
+        "SELECT ('%%token ' || '\n"
+        "  ' || group_concat(name || (CASE WHEN (cnt %% 6) = 0 THEN '\n"
+        "  ' ELSE ' ' END), '') || '\n"
+        "  ') AS val FROM (\n"
+        "  SELECT row_number() OVER (ORDER BY s.id) AS cnt, s.name\n"
+        "  FROM symbol AS s WHERE isTerminal=TRUE\n"
+        "  ORDER BY id\n"
+        ") t;\n"
+        "CREATE VIEW prec_view AS\n"
+        "WITH prec(id, name) AS (VALUES('L','%%left'),('R','%%right'),('N','%%nonassoc'),('P','%%precedence'))\n"
+        "SELECT prec.name || ' ' || group_concat(s.name, ' ')\n"
+        "FROM precedence AS p\n"
+        "	LEFT JOIN prec ON p.assoc=prec.id\n"
+        "	LEFT JOIN symbol AS s on p.id=s.id\n"
+        "GROUP BY p.prec\n"
+        "ORDER BY p.prec;\n"
+        "CREATE VIEW grammar_view AS\n"
+        "SELECT * FROM token_view\n"
+        "UNION ALL\n"
+        "SELECT * FROM prec_view\n"
+        "UNION ALL\n"
+        "SELECT '\n"
+        "%%start ' || s.name || '\n\n%%%%\n'\n"
+        "FROM directives AS d join symbol AS s ON d.start_symbol=s.id\n"
+        "UNION ALL\n"
+        "SELECT * FROM rule_view;\n"
+        "COMMIT;\n"
+        "--select * from grammar_view;\n"
+    );
+    
 }
 
 #if defined(YYBTYACC)
@@ -4460,6 +4673,7 @@ reader(void)
     pack_grammar();
     print_grammar_lemon(); // need be before free_symbols
     print_grammar_naked(); // need be before free_symbols
+    print_grammar_sql(); // need be before free_symbols
     free_symbol_table();
     free_symbols();
     print_grammar();

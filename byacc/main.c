@@ -47,6 +47,7 @@ char lemon_flag;
 char lemon_prec_flag;
 char ignore_prec_flag;
 char naked_flag;
+char sql_flag;
 
 const char *symbol_prefix;
 const char *myname = "yacc";
@@ -70,6 +71,7 @@ static char *verbose_file_name;
 static char *ebnf_file_name;
 static char *lemon_file_name;
 static char *naked_file_name;
+static char *sql_file_name;
 
 FILE *action_file;	/*  a temp file, used to save actions associated    */
 			/*  with rules until the parser is written          */
@@ -85,8 +87,9 @@ FILE *union_file;	/*  a temp file, used to save the union             */
 			/*  defined                                         */
 FILE *verbose_file;	/*  y.output                                        */
 FILE *ebnf_file;	/*  y.ebnf                                          */
-FILE *lemon_file;	/*  lemon.y                                          */
-FILE *naked_file;	/*  naked.y                                          */
+FILE *lemon_file;	/*  lemon.y                                         */
+FILE *naked_file;	/*  naked.y                                         */
+FILE *sql_file;         /*  sql.y                                           */
 FILE *graph_file;	/*  y.dot                                           */
 
 Value_t nitems;
@@ -186,6 +189,9 @@ done(int k)
     if (naked_flag)
 	DO_FREE(naked_file_name);
 
+    if (sql_flag)
+	DO_FREE(sql_file_name);
+
     if (gflag)
 	DO_FREE(graph_file_name);
 
@@ -242,6 +248,7 @@ static const struct {
     { "lemon",       0, 'E' },
     { "help",        0, 'h' },
     { "naked",       0, 'n' },
+    { "sql",         0, 'S' },
     { "name-prefix", 1, 'p' },
     { "no-lines",    0, 'l' },
     { "output",      1, 'o' },
@@ -279,6 +286,7 @@ usage(void)
 	{ "  -P                    create a reentrant parser, e.g., \"%pure-parser\"" },
 	{ "  -r                    produce separate code and table files (y.code.c)" },
 	{ "  -s                    suppress #define's for quoted names in %token lines" },
+	{ "  -S                    write grammar as sql" },
 	{ "  -t                    add debugging support" },
 	{ "  -v                    write description (y.output)" },
 	{ "  -V                    show version information and exit" },
@@ -363,6 +371,10 @@ setflag(int ch)
 
     case 'n':
 	naked_flag = 1;
+	break;
+
+    case 'S':
+	sql_flag = 1;
 	break;
 
     case 'P':
@@ -463,7 +475,7 @@ getargs(int argc, char *argv[])
     if (argc > 0)
 	myname = argv[0];
 
-    while ((ch = getopt(argc, argv, "Bb:dEeghH:ilLno:Pp:rstVvyuz")) != -1)
+    while ((ch = getopt(argc, argv, "Bb:dEeghH:ilLno:Pp:rsStVvyuz")) != -1)
     {
 	switch (ch)
 	{
@@ -710,6 +722,11 @@ create_file_names(void)
 	CREATE_FILE_NAME(naked_file_name, NAKED_SUFFIX);
     }
 
+    if (sql_flag)
+    {
+	CREATE_FILE_NAME(sql_file_name, SQL_SUFFIX);
+    }
+
     if (gflag)
     {
 	CREATE_FILE_NAME(graph_file_name, GRAPH_SUFFIX);
@@ -902,6 +919,13 @@ open_files(void)
 	naked_file = fopen(naked_file_name, "w");
 	if (naked_file == 0)
 	    open_error(naked_file_name);
+    }
+
+    if (sql_flag)
+    {
+	sql_file = fopen(sql_file_name, "w");
+	if (sql_file == 0)
+	    open_error(sql_file_name);
     }
 
     if (gflag)
