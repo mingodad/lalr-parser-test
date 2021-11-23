@@ -1,17 +1,18 @@
 diff -u src/getargs.c src-dad/getargs.c
 --- src/getargs.c	2021-11-15 11:15:38.424233021 +0100
-+++ src-dad/getargs.c	2021-11-19 12:39:13.687338990 +0100
-@@ -38,6 +38,9 @@
++++ src-dad/getargs.c	2021-11-23 10:08:21.068365921 +0100
+@@ -38,6 +38,10 @@
  #include "output.h"
  #include "uniqstr.h"
  
 +bool rrebnf_flag = false;
 +bool naked_flag = false;
 +bool lemon_flag = false;
++bool sql_flag = false;
  bool header_flag = false;
  bool graph_flag = false;
  bool html_flag = false;
-@@ -432,11 +435,15 @@
+@@ -432,11 +436,16 @@
    -l, --no-lines                   don't generate '#line' directives\n\
    -k, --token-table                include a table of token names\n\
    -y, --yacc                       emulate POSIX Yacc\n\
@@ -24,10 +25,17 @@ diff -u src/getargs.c src-dad/getargs.c
 +  -e                            generate RREBNF\n\
 +  -n                            generate naked grammar\n\
 +  -N                            generate lemon grammar\n\
++  -s                            generate sql\n\
    -H, --header=[FILE]           also produce a header file\n\
    -d                            likewise but cannot specify FILE (for POSIX Yacc)\n\
    -r, --report=THINGS           also produce details on the automaton\n\
-@@ -564,6 +571,9 @@
+@@ -559,11 +568,15 @@
+   "H::"
+   "L:"
+   "S:"
++  "s"
+   "T::"
+   "V"
    "W::"
    "b:"
    "d"
@@ -37,7 +45,7 @@ diff -u src/getargs.c src-dad/getargs.c
    "f::"
    "g::"
    "h"
-@@ -578,6 +588,7 @@
+@@ -578,6 +591,7 @@
    "v"
    "x::"
    "y"
@@ -45,7 +53,7 @@ diff -u src/getargs.c src-dad/getargs.c
    ;
  
  /* Values for long options that do not have single-letter equivalents.  */
-@@ -620,8 +631,12 @@
+@@ -620,8 +634,13 @@
    { "no-lines",       no_argument,         0, 'l' },
    { "token-table",    no_argument,         0, 'k' },
    { "yacc",           no_argument,         0, 'y' },
@@ -55,10 +63,11 @@ diff -u src/getargs.c src-dad/getargs.c
 +  { "rrebnf",          optional_argument,   0,   'e' },
 +  { "naked",           optional_argument,   0,   'n' },
 +  { "lemon",           optional_argument,   0,   'N' },
++  { "sql",             optional_argument,   0,   's' },
    { "header",          optional_argument,   0,   'H' },
    { "defines",         optional_argument,   0,   'd' },
    { "report",          required_argument,   0,   'r' },
-@@ -787,6 +802,18 @@
+@@ -787,6 +806,18 @@
          spec_file_prefix = optarg;
          break;
  
@@ -77,7 +86,18 @@ diff -u src/getargs.c src-dad/getargs.c
        case 'g':
          graph_flag = true;
          if (optarg)
-@@ -849,6 +876,10 @@
+@@ -819,6 +850,10 @@
+         FLAGS_ARGMATCH (report, optarg, report_all);
+         break;
+ 
++      case 's':
++        sql_flag = true;
++        break;
++
+       case 't':
+         muscle_percent_define_insert ("parse.trace",
+                                       loc,
+@@ -849,6 +884,10 @@
          set_yacc (loc);
          break;
  
@@ -90,18 +110,19 @@ diff -u src/getargs.c src-dad/getargs.c
          break;
 diff -u src/getargs.h src-dad/getargs.h
 --- src/getargs.h	2021-11-15 11:15:38.424233021 +0100
-+++ src-dad/getargs.h	2021-11-19 12:36:40.157593702 +0100
-@@ -34,6 +34,9 @@
++++ src-dad/getargs.h	2021-11-23 09:44:34.798961520 +0100
+@@ -34,6 +34,10 @@
  /* for -I */
  extern char const *include;
  
 +extern bool rrebnf_flag;                /* for -e */
 +extern bool lemon_flag;                 /* for -N */
 +extern bool naked_flag;                 /* for -n */
++extern bool sql_flag;                   /* for -s */
  extern bool header_flag;                /* for -d/-H */
  extern bool graph_flag;                 /* for -g */
  extern bool html_flag;                  /* for --html */
-@@ -55,6 +58,8 @@
+@@ -55,6 +59,8 @@
  
  extern bool nondeterministic_parser;
  
@@ -243,7 +264,7 @@ diff -u src/parse-gram.y src-dad/parse-gram.y
  ;
 diff -u src/reader.c src-dad/reader.c
 --- src/reader.c	2021-11-15 11:15:38.428233427 +0100
-+++ src-dad/reader.c	2021-11-19 15:11:04.232883394 +0100
++++ src-dad/reader.c	2021-11-23 12:32:35.535008307 +0100
 @@ -20,6 +20,7 @@
  
  #include <config.h>
@@ -261,7 +282,7 @@ diff -u src/reader.c src-dad/reader.c
  }
  
  /* Set %empty for the current rule. */
-@@ -816,6 +817,411 @@
+@@ -816,6 +817,691 @@
    return res->content.sym;
  }
  
@@ -288,7 +309,7 @@ diff -u src/reader.c src-dad/reader.c
 +  uniqstr prev_rule = NULL;
 +  
 +  printf("\n/*Tokens*/\n");
-+  for (int i = FIRST_USER_TOKEN; i < ntokens; ++i) {
++  for (int i = 0 /*FIRST_USER_TOKEN*/; i < ntokens; ++i) {
 +      printf ("%%token %s\n", symbols[i]->alias ? symbols[i]->alias->tag : symbols[i]->tag);
 +  }
 +  printf("\n");
@@ -358,6 +379,288 @@ diff -u src/reader.c src-dad/reader.c
 +  if(rhs_count == 0) printf(STR_EMPTY_COMMENTED);
 +  printf("\n\t;\n");
 +  fflush(stdout);
++}
++
++typedef char char64_t[64];
++
++static const char *
++escape_sql(char64_t *buf, const char *tkname)
++{
++    int i, i2;
++    for(i=0, i2 = 0; i<(sizeof(char64_t)-1) && tkname[i2]; ++i, ++i2) {
++        switch(tkname[i2]) {
++            case '\'':
++                (*buf)[i++] = tkname[i2];
++                (*buf)[i] = tkname[i2];
++                break;
++            default:
++            (*buf)[i] = tkname[i2];
++        }
++    }
++    (*buf)[i] = '\0';
++    return *buf;
++}
++
++static void
++print_sql_grammar(void)
++{
++  int b, i, k, starting_new_rule = 1, rhs_count = 1, rule_count;
++  uniqstr prev_rule = NULL;
++  FILE *f = stdout;
++  char64_t buf;
++
++  fprintf(f,
++    "BEGIN;\n"
++    "CREATE TABLE symbol(\n"
++    "  id INTEGER PRIMARY KEY,\n"
++    "  name TEXT NOT NULL,\n"
++    "  isTerminal BOOLEAN NOT NULL,\n"
++    "  fallback INTEGER REFERENCES symbol"
++            " DEFERRABLE INITIALLY DEFERRED\n"
++    ");\n"
++  );
++
++  for (i = 0 /*FIRST_USER_TOKEN*/, b = 0; i < ntokens; ++i) {
++    if(b==0) {
++      fprintf(f,
++         "INSERT INTO symbol(id,name,isTerminal)"
++         " VALUES\n");
++    }
++    fprintf(f,
++       " %s(%d,'%s',TRUE)\n",
++       (b>0) ? "," : " ", symbols[i]->content->number, escape_sql(&buf, 
++            symbols[i]->alias ? symbols[i]->alias->tag : symbols[i]->tag)
++    );
++    ++b;
++  }
++
++  for (symbol_list *sym = grammar, *sym_prev=NULL; sym; sym = sym->next) {
++    if(sym->content_type == SYMLIST_SYMBOL) {
++        if(!sym->content.sym) {
++          starting_new_rule = 1;
++          continue;
++        }
++        if(sym->content.sym && (sym->content.sym->tag[0] == '$' ||
++                sym->content.sym->tag[0] == '@'))
++            continue;
++        if(starting_new_rule) {
++          if(prev_rule != sym->content.sym->tag) {
++            if(sym_prev && sym_prev->content.sym->content->number >
++                    sym->content.sym->content->number) {
++                starting_new_rule = 0;
++                continue;
++            }
++            fprintf(f,
++               " %s(%d,'%s',FALSE)\n",
++               (b>0) ? "," : " ", sym->content.sym->content->number,
++                    sym->content.sym->tag
++            );
++            ++b;
++            prev_rule = sym->content.sym->tag;
++            sym_prev = sym;
++          }
++          starting_new_rule = 0;
++        }
++    }
++  }  
++  if(b>0) fprintf(f, " ;\n");
++  fprintf(f, "\n");
++
++  fprintf(f,
++    "CREATE TABLE precedence(\n"
++    "  id INTEGER PRIMARY KEY REFERENCES symbol"
++            " DEFERRABLE INITIALLY DEFERRED,\n"
++    "  prec INTEGER NOT NULL,\n"
++    "  assoc CHAR NOT NULL CHECK(assoc IN('L','R','N','P'))\n"
++    ");\n"
++  );
++
++  for (k = 1, b = 0; k <= current_prec; ++k) {
++      int sassoc = 0;
++      for (int i = FIRST_USER_TOKEN; i < ntokens; ++i)
++      {
++          if(symbols[i]->content->prec == k) {
++            uniqstr tag = symbols[i]->alias ?
++                symbols[i]->alias->tag : symbols[i]->tag;
++            if(b==0) {
++                fprintf(f,
++                   "INSERT INTO precedence(id,prec,assoc)"
++                   " VALUES\n");
++            }
++            assoc sym_assoc = symbols[i]->content->assoc;
++            const char *assoc_name = assoc_to_string(sym_assoc);
++            fprintf(f,
++               " %s(%d,%d,'%c')",
++               (b > 0) ? "," : " ", i, k, toupper(assoc_name[1])
++            );
++            ++b;
++            if((b%4) == 0) fprintf(f, "\n");
++          }
++      }
++  }
++  if(b>0) fprintf(f, " ;\n");
++  fprintf(f, "\n");
++
++  fprintf(f,
++    "CREATE TABLE rule(\n"
++    "  ruleid INTEGER PRIMARY KEY,\n"
++    "  lhs INTEGER REFERENCES symbol(id),\n"
++    "  prec_id INTEGER REFERENCES symbol(id)\n"
++    ");\n"
++  );
++
++  b = 0;
++  rule_count = 1;
++  for (symbol_list *sym = grammar; sym; sym = sym->next) {
++    if(sym->content_type == SYMLIST_SYMBOL) {
++        if(!sym->content.sym) {
++          starting_new_rule = 1;
++          continue;
++        }
++        if(sym->content.sym && (sym->content.sym->tag[0] == '$' ||
++                sym->content.sym->tag[0] == '@'))
++            continue;
++        if(starting_new_rule) {
++            if(b==0) {
++              fprintf(f,
++                "INSERT INTO rule(ruleid,lhs,prec_id) VALUES\n");
++            }
++            fprintf(f,
++               " %s(%d,%d,",
++               (b>0) ? "," : " ", rule_count++,
++                    sym->content.sym->content->number
++            );
++            if(sym->ruleprec)
++                fprintf(f, "%d)", sym->ruleprec->content->number);
++            else
++                fprintf(f, "NULL)");
++            ++b;
++            if((b%4) == 0) fprintf(f, "\n");
++            prev_rule = sym->content.sym->tag;
++          }
++          starting_new_rule = 0;
++    }
++  }  
++  if(b>0) fprintf(f, " ;\n");
++  fprintf(f, "\n");
++  
++  fprintf(f,
++    "CREATE TABLE directives(\n"
++    "  id INTEGER PRIMARY KEY CHECK(id = 1),"
++    "  stack_size TEXT,\n"
++    "  start_symbol INTEGER REFERENCES symbol,\n"
++    "  wildcard INTEGER REFERENCES symbol\n"
++    ");\n"
++    "INSERT INTO directives(id) values(1);\n"
++  );
++
++  for (symbol_list *list = start_symbols; list; list = list->next) {
++    if(list->content.sym && list->content.sym->tag[0] == '$')
++      continue;
++    fprintf(f,
++      "UPDATE directives SET start_symbol=%d;\n",
++          list->content.sym->content->number
++    );
++    break;
++  }
++  fprintf(f, "\n");
++
++  fprintf(f,
++    "CREATE TABLE rulerhs(\n"
++    "  id INTEGER PRIMARY KEY,"
++    "  ruleid INTEGER REFERENCES rule(ruleid),\n"
++    "  pos INTEGER,\n"
++    "  sym INTEGER REFERENCES symbol(id)\n"
++    ");\n"
++  );
++
++  b = 0;
++  rule_count = 0;
++  for (symbol_list *sym = grammar, *sym_lhs=NULL; sym; sym = sym->next) {
++    if(sym->content_type == SYMLIST_SYMBOL) {
++        if(!sym->content.sym) {
++          starting_new_rule = 1;
++          continue;
++        }
++        if(sym->content.sym && (sym->content.sym->tag[0] == '$' ||
++                sym->content.sym->tag[0] == '@'))
++            continue;
++        if(starting_new_rule) {
++          if(prev_rule != sym->content.sym->tag) {
++            prev_rule = sym->content.sym->tag;
++            sym_lhs = sym;
++          }
++          starting_new_rule = rhs_count = 0;
++          ++rule_count;
++        }
++        else
++        {
++            if(b==0) {
++              fprintf(f,
++                "INSERT INTO rulerhs(ruleid,pos,sym) VALUES\n");
++            }
++            fprintf(f,
++               " %s(%d,%d,%d)",
++               (b>0) ? "," : " ", rule_count,
++                    rhs_count, sym->content.sym->content->number
++            );
++            ++b;
++            if((b%5) == 0) fprintf(f, "\n");
++            ++rhs_count;
++        }
++    }
++  }  
++  if(b>0) fprintf(f, " ;\n");
++  fprintf(f, "\n");
++
++  fprintf(f,
++    "CREATE VIEW rule_view AS\n"
++    "SELECT srule || (case when lhs <> lhs2 then '\n"
++    "' else '' end) FROM (\n"
++    "  SELECT s.name || ' : ' || ifnull((\n"
++    "    SELECT group_concat(rs.name, ' ')\n"
++    "    FROM rulerhs AS rr LEFT JOIN symbol AS rs ON rr.sym=rs.id\n"
++    "    WHERE rr.ruleid=r.ruleid\n"
++    "    ORDER BY rr.pos), '/*empty*/')\n"
++    "      || ifnull((' %%prec ' || sp.name), '') || ' ;' as srule,\n"
++    "    r.lhs, lead(r.lhs) OVER(ORDER BY r.ruleid) AS lhs2\n"
++    "  FROM rule AS r\n"
++    "    LEFT JOIN symbol AS s ON r.lhs=s.id\n"
++    "    LEFT JOIN symbol AS sp ON r.prec_id=sp.id\n"
++    "  ORDER BY r.ruleid\n"
++    ") t;\n"
++    "CREATE VIEW token_view AS\n"
++    "SELECT ('%%token ' || '\n"
++    "  ' || group_concat(name || (CASE WHEN (cnt %% 6) = 0 THEN '\n"
++    "  ' ELSE ' ' END), '') || '\n"
++    "  ') AS val FROM (\n"
++    "  SELECT row_number() OVER (ORDER BY s.id) AS cnt, s.name\n"
++    "  FROM symbol AS s WHERE isTerminal=TRUE\n"
++    "  ORDER BY id\n"
++    ") t;\n"
++    "CREATE VIEW prec_view AS\n"
++    "WITH prec(id, name) AS (VALUES('L','%%left'),('R','%%right'),('N','%%nonassoc'),('P','%%precedence'))\n"
++    "SELECT prec.name || ' ' || group_concat(s.name, ' ')\n"
++    "FROM precedence AS p\n"
++    "	LEFT JOIN prec ON p.assoc=prec.id\n"
++    "	LEFT JOIN symbol AS s on p.id=s.id\n"
++    "GROUP BY p.prec\n"
++    "ORDER BY p.prec;\n"
++    "CREATE VIEW grammar_view AS\n"
++    "SELECT * FROM token_view\n"
++    "UNION ALL\n"
++    "SELECT * FROM prec_view\n"
++    "UNION ALL\n"
++    "SELECT '\n"
++    "%%start ' || s.name || '\n\n%%%%\n'\n"
++    "FROM directives AS d join symbol AS s ON d.start_symbol=s.id\n"
++    "UNION ALL\n"
++    "SELECT * FROM rule_view;\n"
++    "COMMIT;\n"
++    "--select * from grammar_view;\n"
++  );
++
++  fflush(f);
 +}
 +
 +static const char * ascii_names_st[] = {
@@ -490,8 +793,6 @@ diff -u src/reader.c src-dad/reader.c
 +/*126*/ "TILDE" /*~ Equivalency sign - tilde*/,
 +/*127*/ "127" /*Delete*/
 +};
-+
-+typedef char char64_t[64];
 +
 +static const char *get_lemon_token_name(char64_t *buf, const char *tkname)
 +{
@@ -673,14 +974,19 @@ diff -u src/reader.c src-dad/reader.c
  
  /* Insert an initial rule, whose location is that of the first rule
     (not that of the start symbol):
-@@ -1000,6 +1406,10 @@
+@@ -1000,6 +1686,11 @@
    /* Convert the grammar into the format described in gram.h.  */
    packgram ();
  
 +  if(rrebnf_flag) print_rrebnf();
 +  if(naked_flag) print_naked_grammar();
 +  if(lemon_flag) print_lemon_grammar();
++  if(sql_flag) print_sql_grammar();
 +
    /* The grammar as a symbol_list is no longer needed. */
    symbol_list_free (grammar);
  }
+Only in src: scan-code-c.c
+Only in src: scan-code.h
+Only in src: scan-gram-c.c
+Only in src-dad: scan-skel.c
