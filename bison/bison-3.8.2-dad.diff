@@ -264,7 +264,7 @@ diff -u src/parse-gram.y src-dad/parse-gram.y
  ;
 diff -u src/reader.c src-dad/reader.c
 --- src/reader.c	2021-11-15 11:15:38.428233427 +0100
-+++ src-dad/reader.c	2021-11-23 12:32:35.535008307 +0100
++++ src-dad/reader.c	2021-11-23 13:19:29.819821385 +0100
 @@ -20,6 +20,7 @@
  
  #include <config.h>
@@ -546,7 +546,7 @@ diff -u src/reader.c src-dad/reader.c
 +  
 +  fprintf(f,
 +    "CREATE TABLE directives(\n"
-+    "  id INTEGER PRIMARY KEY CHECK(id = 1),"
++    "  id INTEGER PRIMARY KEY CHECK(id = 1),\n"
 +    "  stack_size TEXT,\n"
 +    "  start_symbol INTEGER REFERENCES symbol,\n"
 +    "  wildcard INTEGER REFERENCES symbol\n"
@@ -986,7 +986,3 @@ diff -u src/reader.c src-dad/reader.c
    /* The grammar as a symbol_list is no longer needed. */
    symbol_list_free (grammar);
  }
-Only in src: scan-code-c.c
-Only in src: scan-code.h
-Only in src: scan-gram-c.c
-Only in src-dad: scan-skel.c

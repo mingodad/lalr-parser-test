@@ -4497,7 +4497,7 @@ print_grammar_sql(void)
 
     fprintf(f,
         "CREATE TABLE directives(\n"
-        "  id INTEGER PRIMARY KEY CHECK(id = 1),"
+        "  id INTEGER PRIMARY KEY CHECK(id = 1),\n"
         "  stack_size TEXT,\n"
         "  start_symbol INTEGER REFERENCES symbol,\n"
         "  wildcard INTEGER REFERENCES symbol\n"
