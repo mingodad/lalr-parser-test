@@ -105,6 +105,8 @@
 #define	LEMON_SUFFIX	".yl"
 #define GRAPH_SUFFIX    ".dot"
 #define NAKED_SUFFIX    ".yn"
+#define UNICC_SUFFIX    ".ypar"
+#define CARBURETTA_SUFFIX    ".ycbrt"
 #define SQL_SUFFIX      ".sql"
 #define VERBOSE_RULE_POINT_CHAR    '*'
 #define RULE_NUM_OFFSET 2
@@ -313,6 +315,8 @@ extern char lemon_flag;
 extern char lemon_prec_flag;
 extern char ignore_prec_flag;
 extern char naked_flag;
+extern char unicc_flag;
+extern char carburetta_flag;
 extern char sql_flag;
 extern const char *symbol_prefix;
 
@@ -364,6 +368,8 @@ extern FILE *verbose_file;
 extern FILE *ebnf_file;
 extern FILE *lemon_file;
 extern FILE *naked_file;
+extern FILE *unicc_file;
+extern FILE *carburetta_file;
 extern FILE *sql_file;
 extern FILE *graph_file;
 

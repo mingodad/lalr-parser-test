@@ -47,6 +47,8 @@ char lemon_flag;
 char lemon_prec_flag;
 char ignore_prec_flag;
 char naked_flag;
+char unicc_flag;
+char carburetta_flag;
 char sql_flag;
 
 const char *symbol_prefix;
@@ -71,6 +73,8 @@ static char *verbose_file_name;
 static char *ebnf_file_name;
 static char *lemon_file_name;
 static char *naked_file_name;
+static char *unicc_file_name;
+static char *carburetta_file_name;
 static char *sql_file_name;
 
 FILE *action_file;	/*  a temp file, used to save actions associated    */
@@ -89,6 +93,8 @@ FILE *verbose_file;	/*  y.output                                        */
 FILE *ebnf_file;	/*  y.ebnf                                          */
 FILE *lemon_file;	/*  lemon.y                                         */
 FILE *naked_file;	/*  naked.y                                         */
+FILE *unicc_file;	/*  unicc.y                                         */
+FILE *carburetta_file;	/*  carburetra.cbrt                                 */
 FILE *sql_file;         /*  sql.y                                           */
 FILE *graph_file;	/*  y.dot                                           */
 
@@ -189,6 +195,12 @@ done(int k)
     if (naked_flag)
 	DO_FREE(naked_file_name);
 
+    if (unicc_flag)
+	DO_FREE(unicc_file_name);
+
+    if (carburetta_flag)
+	DO_FREE(carburetta_file_name);
+
     if (sql_flag)
 	DO_FREE(sql_file_name);
 
@@ -243,6 +255,7 @@ static const struct {
 } long_opts[] = {
     { "defines",     1, 'H' },
     { "file-prefix", 1, 'b' },
+    { "carburetta",  0, 'c' },
     { "graph",       0, 'g' },
     { "ebnf",        0, 'e' },
     { "lemon",       0, 'E' },
@@ -271,6 +284,8 @@ usage(void)
     {
 	{ "  -b file_prefix        set filename prefix (default \"y.\")" },
 	{ "  -B                    create a backtracking parser" },
+	{ "  -c                    write carburetta grammar" },
+	{ "  -C                    write unicc grammar" },
 	{ "  -d                    write definitions (" DEFINES_SUFFIX ")" },
 	{ "  -e                    write ebnf grammar" },
 	{ "  -E                    write lemon grammar" },
@@ -334,6 +349,14 @@ setflag(int ch)
 #else
 	unsupported_flag_warning("-B", "reconfigure with --enable-btyacc");
 #endif
+	break;
+
+    case 'c':
+	carburetta_flag = 1;
+	break;
+
+    case 'C':
+	unicc_flag = 1;
 	break;
 
     case 'd':
@@ -475,7 +498,7 @@ getargs(int argc, char *argv[])
     if (argc > 0)
 	myname = argv[0];
 
-    while ((ch = getopt(argc, argv, "Bb:dEeghH:ilLno:Pp:rsStVvyuz")) != -1)
+    while ((ch = getopt(argc, argv, "Bb:cCdEeghH:ilLno:Pp:rsStVvyuz")) != -1)
     {
 	switch (ch)
 	{
@@ -722,6 +745,16 @@ create_file_names(void)
 	CREATE_FILE_NAME(naked_file_name, NAKED_SUFFIX);
     }
 
+    if (unicc_flag)
+    {
+	CREATE_FILE_NAME(unicc_file_name, UNICC_SUFFIX);
+    }
+
+    if (carburetta_flag)
+    {
+	CREATE_FILE_NAME(carburetta_file_name, CARBURETTA_SUFFIX);
+    }
+
     if (sql_flag)
     {
 	CREATE_FILE_NAME(sql_file_name, SQL_SUFFIX);
@@ -919,6 +952,20 @@ open_files(void)
 	naked_file = fopen(naked_file_name, "w");
 	if (naked_file == 0)
 	    open_error(naked_file_name);
+    }
+
+    if (unicc_flag)
+    {
+	unicc_file = fopen(unicc_file_name, "w");
+	if (unicc_file == 0)
+	    open_error(unicc_file_name);
+    }
+
+    if (carburetta_flag)
+    {
+	carburetta_file = fopen(carburetta_file_name, "w");
+	if (carburetta_file == 0)
+	    open_error(carburetta_file_name);
     }
 
     if (sql_flag)
