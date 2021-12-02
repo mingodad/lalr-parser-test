@@ -4367,11 +4367,23 @@ print_grammar_naked(void)
     fprintf(f, "\t;\n"); /*last rule*/
 }
 
+static const char *get_normalized_rule_name(char64_t *buf, const char *tkname)
+{
+    snprintf(*buf, sizeof(char64_t), "%s", tkname);
+    for(int i=0; (*buf)[i]; ++i) {
+        if((*buf)[i] == '.')
+            (*buf)[i] = '_';
+    }
+    return *buf;
+}
+
+
 static void
 print_grammar_unicc(void)
 {
     int b, i, k;
     FILE *f = unicc_file;
+    char64_t buf;
 
     if (!unicc_flag)
 	return;
@@ -4428,9 +4440,10 @@ print_grammar_unicc(void)
 	    if(!skip_rule) {
                 if(b == 0 && strcmp(goal->name, sym_name) == 0) {
                     ++b;
-                    fprintf(f, "%s$ :\n\t", sym_name);
+                    fprintf(f, "%s$ :\n\t", get_normalized_rule_name(&buf, sym_name));
                 }
-        	else fprintf(f, "%s :\n\t", (i == START_RULE_IDX) ? "x_start_rule_" : sym_name);
+        	else fprintf(f, "%s :\n\t", (i == START_RULE_IDX) ? "x_start_rule_" : 
+                    get_normalized_rule_name(&buf, sym_name));
             }
 	}
 	else
@@ -4453,7 +4466,7 @@ print_grammar_unicc(void)
                         print_symbol_prec_commented(f, symbol);
                     }
                     else
-                        fprintf(f, " %s", sym_name);
+                        fprintf(f, " %s", get_normalized_rule_name(&buf, sym_name));
                     print_symbol_prec_commented(f, symbol);
                 }
                 ++k;
@@ -4479,16 +4492,6 @@ print_grammar_unicc(void)
         }
     }
     fprintf(f, "\t;\n"); /*last rule*/
-}
-
-static const char *get_carburetta_rule_name(char64_t *buf, const char *tkname)
-{
-    snprintf(*buf, sizeof(char64_t), "%s", tkname);
-    for(int i=0; (*buf)[i]; ++i) {
-        if((*buf)[i] == '.')
-            (*buf)[i] = '_';
-    }
-    return *buf;
 }
 
 static void
@@ -4523,7 +4526,7 @@ print_grammar_carburetta(void)
                 if(!b) {
                     fprintf(f, "%%nt");
                 }
-        	fprintf(f, " %s", get_carburetta_rule_name(&buf, sym_name));
+        	fprintf(f, " %s", get_normalized_rule_name(&buf, sym_name));
                 ++b;
                 if((b % 5) == 0)
                     fprintf(f, "\n%%nt");
@@ -4537,7 +4540,7 @@ print_grammar_carburetta(void)
     k = 1;
     for (i = START_RULE_IDX; i < nrules; ++i)
     {
-        const char *sym_name = get_carburetta_rule_name(&buf, symbol_name[rlhs[i]]);
+        const char *sym_name = get_normalized_rule_name(&buf, symbol_name[rlhs[i]]);
         int skip_rule = sym_name[0] == '$';
 	if (rlhs[i] != rlhs[i - 1])
 	{
@@ -4555,7 +4558,7 @@ print_grammar_carburetta(void)
             while (ritem[k] >= 0)
             {
                 Value_t symbol = ritem[k];
-                sym_name = get_carburetta_rule_name(&buf, symbol_name[symbol]);
+                sym_name = get_normalized_rule_name(&buf, symbol_name[symbol]);
                 if(!skip_rule && sym_name[0] != '$') {
                     fprintf(f, " %s", sym_name);
                     print_symbol_prec_commented(f, symbol);
