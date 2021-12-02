@@ -4376,6 +4376,8 @@ print_grammar_unicc(void)
     if (!unicc_flag)
 	return;
 
+    fprintf(f, "#!mode insensitive ;\n\n");
+/*
     for (i = 0; i < ntokens; ++i)
     {
         const char *sym_name = symbol_name[i];
@@ -4383,7 +4385,7 @@ print_grammar_unicc(void)
             fprintf(f, "@%s '%s';\n", sym_name, sym_name);
     }
     fprintf(f, "\n");
-
+*/
     for (k = 0; k <= prec; ++k) {
         int sassoc = 0;
         for (i = 0; i < ntokens; ++i)
@@ -4401,7 +4403,7 @@ print_grammar_unicc(void)
                     if(sym_name[0] == '\'')
                         fprintf(f, " %s", sym_name);
                     else
-                        fprintf(f, " @%s", sym_name);
+                        fprintf(f, " \"%s\"", sym_name);
                 }
             }
         }
@@ -4447,7 +4449,7 @@ print_grammar_unicc(void)
                         if(sym_name[0] == '\'')
                             fprintf(f, " %s", sym_name);
                         else
-                            fprintf(f, " @%s", sym_name);
+                            fprintf(f, " \"%s\"", sym_name);
                         print_symbol_prec_commented(f, symbol);
                     }
                     else
