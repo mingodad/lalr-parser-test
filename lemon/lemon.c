@@ -3340,7 +3340,8 @@ get_symbol_prec_chr(struct symbol *sym)
 static void
 print_symbol_prec_commented(FILE *out, struct symbol *sym)
 {
-    fprintf(out," /*%d%c*/", sym->prec, get_symbol_prec_chr(sym));
+    if(sym->prec >= 0)
+        fprintf(out," /*%d%c*/", sym->prec, get_symbol_prec_chr(sym));
 }
 
 /* Print the text of a rule
