@@ -4484,7 +4484,7 @@ print_grammar_unicc(void)
                 if(prec_bucket->name[0] == '\'')
                     fprintf(f, " #precedence %s", prec_bucket->name);
                 else
-                    fprintf(f, " #precedence @%s", prec_bucket->name);
+                    fprintf(f, " #precedence \"%s\"", prec_bucket->name);
                 print_symbol_prec_assoc_commented(f, prec_bucket->prec, prec_bucket->assoc);
                 fprintf(f, "\n");
             }
@@ -4743,23 +4743,32 @@ print_grammar_sql(void)
         const char *sym_name = symbol_name[rlhs[i]];
         int skip_rule = sym_name[0] == '$';
         j = 0;
-        while (ritem[k] >= 0)
-        {
-            Value_t symbol = ritem[k];
-            sym_name = symbol_name[symbol];
-            if(!skip_rule && sym_name[0] != '$') {
-                if(b==0) {
-                  fprintf(f,
-                    "INSERT INTO rulerhs(ruleid,pos,sym) VALUES\n");
+        if(ritem[k] >= 0) { /*not an empty rule*/
+            while (ritem[k] >= 0)
+            {
+                Value_t symbol = ritem[k];
+                sym_name = symbol_name[symbol];
+                if(!skip_rule && sym_name[0] != '$') {
+                    if(b==0) {
+                      fprintf(f,
+                        "INSERT INTO rulerhs(ruleid,pos,sym) VALUES\n");
+                    }
+                    fprintf(f,
+                      " %s(%d,%d,%d)",
+                      (b > 0) ? "," : " ", i, j++, symbol
+                    );
+                    ++b;
+                    if((b%5) == 0) fprintf(f, "\n");
                 }
-                fprintf(f,
-                  " %s(%d,%d,%d)",
-                  (b > 0) ? "," : " ", i, j++, symbol
-                );
-                ++b;
-                if((b%5) == 0) fprintf(f, "\n");
+                ++k;
             }
-            ++k;
+        } else { /* empty rule */
+            fprintf(f,
+              " %s(%d,%d,NULL)",
+              (b > 0) ? "," : " ", i, j++
+            );
+            ++b;
+            if((b%5) == 0) fprintf(f, "\n");
         }
         ++k;
     }
