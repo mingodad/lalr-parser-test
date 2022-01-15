@@ -4763,7 +4763,7 @@ print_grammar_sql(void)
                 ++k;
             }
         } else { /* empty rule */
-            fprintf(f,
+            if(!skip_rule) fprintf(f,
               " %s(%d,%d,NULL)",
               (b > 0) ? "," : " ", i, j++
             );
