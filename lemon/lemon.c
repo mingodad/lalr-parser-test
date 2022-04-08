@@ -4908,7 +4908,6 @@ void ReportTable(
   int mhflag     /* Output in makeheaders format if true */
 ){
   FILE *out, *in;
-  char line[LINESIZE];
   int  lineno;
   struct state *stp;
   struct action *ap;
@@ -5311,7 +5310,6 @@ void ReportTable(
   /* Generate a table containing the symbolic name of every symbol
   */
   for(i=0; i<lemp->nsymbol; i++){
-    lemon_sprintf(line,"\"%s\",",lemp->symbols[i]->name);
     fprintf(out,"  /* %4d */ \"%s\",\n",i, lemp->symbols[i]->name); lineno++;
   }
   tplt_xfer(lemp->name,in,out,&lineno);
