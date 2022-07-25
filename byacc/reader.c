@@ -708,6 +708,15 @@ copy_code(void)
 	c = *++cptr;
 	if (c == EOF)
 	    unexpected_EOF();
+        if (c == '\0') {
+	    get_line();
+	    if (line == NULL)
+	    {
+		unexpected_EOF();
+		/*NOTREACHED */
+	    }
+	    c = *cptr;
+        }
 	if (isspace(UCH(c)))
 	    continue;
 
