@@ -29,7 +29,7 @@ static void traverse(int i);
 static int tokensetsize;
 Value_t *lookaheads;
 Value_t *LAruleno;
-unsigned *LA;
+bitword_t *LA;
 Value_t *accessing_symbol;
 core **state_table;
 shifts **shift_table;
@@ -42,7 +42,7 @@ Value_t *to_state;
 static Value_t infinity;
 static int maxrhs;
 static Value_t ngotos;
-static unsigned *F;
+static bitword_t *F;
 static Value_t **includes;
 static shorts **lookback;
 static Value_t **R;
@@ -154,7 +154,7 @@ initialize_LA(void)
     }
     lookaheads[nstates] = (Value_t)k;
 
-    LA = NEW2(k * tokensetsize, unsigned);
+    LA = NEW2(k * tokensetsize, bitword_t);
     LAruleno = NEW2(k, Value_t);
     lookback = NEW2(k, shorts *);
 
@@ -278,7 +278,7 @@ initialize_F(void)
     int k;
     shifts *sp;
     Value_t *edge;
-    unsigned *rowp;
+    bitword_t *rowp;
     Value_t *rp;
     Value_t **reads;
     int nedges;
@@ -286,7 +286,7 @@ initialize_F(void)
     int nwords;
 
     nwords = ngotos * tokensetsize;
-    F = NEW2(nwords, unsigned);
+    F = NEW2(nwords, bitword_t);
 
     reads = NEW2(ngotos, Value_t *);
     edge = NEW2(ngotos + 1, Value_t);
@@ -526,9 +526,9 @@ static void
 compute_lookaheads(void)
 {
     int i, n;
-    unsigned *fp1, *fp2, *fp3;
+    bitword_t *fp1, *fp2, *fp3;
     shorts *sp, *next;
-    unsigned *rowp;
+    bitword_t *rowp;
 
     rowp = LA;
     n = lookaheads[nstates];
@@ -584,14 +584,14 @@ digraph(Value_t **relation)
 static void
 traverse(int i)
 {
-    unsigned *fp1;
-    unsigned *fp2;
-    unsigned *fp3;
+    bitword_t *fp1;
+    bitword_t *fp2;
+    bitword_t *fp3;
     int j;
     Value_t *rp;
 
     Value_t height;
-    unsigned *base;
+    bitword_t *base;
 
     VERTICES[++top] = (Value_t)i;
     INDEX[i] = height = top;

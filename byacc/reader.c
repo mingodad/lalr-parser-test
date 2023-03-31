@@ -4376,6 +4376,97 @@ print_grammar_naked(void)
     fprintf(f, "\t;\n"); /*last rule*/
 }
 
+static void
+print_grammar_nakedQ(void)
+{
+    int i, k;
+    FILE *f = nakedq_file;
+
+    if (!nakedq_flag)
+	return;
+
+    for (i = 0; i < ntokens; ++i)
+    {
+        const char *sym_name = symbol_name[i];
+        if(!(sym_name[0] == '$' || strcmp(sym_name, "error") == 0))
+            fprintf(f, "%%token <%s>\n", sym_name);
+    }
+    fprintf(f, "\n");
+
+    for (k = 0; k <= prec; ++k) {
+        int sassoc = 0;
+        for (i = 0; i < ntokens; ++i)
+        {
+            Value_t prec = symbol_prec[i];
+            if(prec == k) {
+                const char *sym_name = symbol_name[i];
+                if(sym_name[0] != '$') {
+                    if(!sassoc) {
+                        const char *assoc_name = get_prec_name(i);
+                        if(!assoc_name) continue;
+                        fprintf(f, "%%%s /*%d*/", assoc_name, prec);
+                        sassoc = 1;
+                    }
+                    fprintf(f, " <%s>", sym_name);
+                }
+            }
+        }
+        if(sassoc) {
+            fprintf(f, "\n");
+        }
+    }
+    fprintf(f, "\n%%start %s\n", goal->name);
+    fprintf(f, "\n%%%%\n\n");
+
+    k = 1;
+    for (i = START_RULE_IDX; i < nrules; ++i)
+    {
+        const char *sym_name = symbol_name[rlhs[i]];
+        int skip_rule = sym_name[0] == '$';
+	if (rlhs[i] != rlhs[i - 1])
+	{
+	    if (i > START_RULE_IDX+1 && !skip_rule) /*+1 to not print ';' at the beginning*/
+		fprintf(f, "\t;\n");
+	    if(!skip_rule)
+		fprintf(f, "%s :\n\t", (i == START_RULE_IDX) ? "x_start_rule_" : sym_name);
+	}
+	else
+	{
+	    fprintf(f, "\t|");
+	}
+
+        if(ritem[k] >= 0) {
+            while (ritem[k] >= 0)
+            {
+                Value_t symbol = ritem[k];
+                sym_name = symbol_name[symbol];
+                if(!skip_rule && sym_name[0] != '$') {
+                    if(symbol < ntokens && !(sym_name[0] == '"' || sym_name[0] == '\'')) fprintf(f, " <%s>", sym_name);
+                    else fprintf(f, " %s", sym_name);
+                    print_symbol_prec_commented(f, symbol);
+                }
+                ++k;
+            }
+        }
+        else
+        {
+            if(!skip_rule)
+                fprintf(f, " /*empty*/");
+        }
+	++k;
+        if(!skip_rule) {
+            bucket *prec_bucket = rprec_bucket[i];
+            if(prec_bucket) {
+                fprintf(f, " %%prec <%s>", prec_bucket->name);
+                print_symbol_prec_assoc_commented(f, prec_bucket->prec, prec_bucket->assoc);
+                fprintf(f, "\n");
+            }
+            else fprintf(f, "\n");
+        }
+    }
+    fprintf(f, "\t;\n"); /*last rule*/
+}
+
 static const char *get_normalized_rule_name(char64_t *buf, const char *tkname)
 {
     snprintf(*buf, sizeof(char64_t), "%s", tkname);
@@ -4597,7 +4688,7 @@ print_grammar_carburetta(void)
 static const char *escape_sql(char64_t *buf, const char *tkname)
 {
     int i, i2;
-    for(i=0, i2 = 0; i<(sizeof(char64_t)-1) && tkname[i2]; ++i, ++i2) {
+    for(i=0, i2 = 0; i<(int)(sizeof(char64_t)-1) && tkname[i2]; ++i, ++i2) {
         switch(tkname[i2]) {
             case '\'':
                 (*buf)[i++] = tkname[i2];
@@ -4927,6 +5018,7 @@ reader(void)
     pack_grammar();
     print_grammar_lemon(); // need be before free_symbols
     print_grammar_naked(); // need be before free_symbols
+    print_grammar_nakedQ(); // need be before free_symbols
     print_grammar_unicc(); // need be before free_symbols
     print_grammar_carburetta(); // need be before free_symbols
     print_grammar_sql(); // need be before free_symbols

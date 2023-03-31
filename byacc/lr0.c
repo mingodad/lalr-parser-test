@@ -136,7 +136,7 @@ generate_states(void)
 {
     allocate_storage();
     itemset = NEW2(nitems, Value_t);
-    ruleset = NEW2(WORDSIZE(nrules), unsigned);
+    ruleset = NEW2(WORDSIZE(nrules), bitword_t);
     set_first_derives();
     initialize_states();
 

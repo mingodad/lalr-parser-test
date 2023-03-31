@@ -47,6 +47,7 @@ char lemon_flag;
 char lemon_prec_flag;
 char ignore_prec_flag;
 char naked_flag;
+char nakedq_flag;
 char unicc_flag;
 char carburetta_flag;
 char sql_flag;
@@ -73,6 +74,7 @@ static char *verbose_file_name;
 static char *ebnf_file_name;
 static char *lemon_file_name;
 static char *naked_file_name;
+static char *nakedq_file_name;
 static char *unicc_file_name;
 static char *carburetta_file_name;
 static char *sql_file_name;
@@ -93,6 +95,7 @@ FILE *verbose_file;	/*  y.output                                        */
 FILE *ebnf_file;	/*  y.ebnf                                          */
 FILE *lemon_file;	/*  lemon.y                                         */
 FILE *naked_file;	/*  naked.y                                         */
+FILE *nakedq_file;	/*  naked.y                                         */
 FILE *unicc_file;	/*  unicc.y                                         */
 FILE *carburetta_file;	/*  carburetra.cbrt                                 */
 FILE *sql_file;         /*  sql.y                                           */
@@ -195,6 +198,9 @@ done(int k)
     if (naked_flag)
 	DO_FREE(naked_file_name);
 
+    if (nakedq_flag)
+	DO_FREE(nakedq_file_name);
+
     if (unicc_flag)
 	DO_FREE(unicc_file_name);
 
@@ -261,6 +267,7 @@ static const struct {
     { "lemon",       0, 'E' },
     { "help",        0, 'h' },
     { "naked",       0, 'n' },
+    { "nakedq",      0, 'N' },
     { "sql",         0, 'S' },
     { "name-prefix", 1, 'p' },
     { "no-lines",    0, 'l' },
@@ -296,6 +303,7 @@ usage(void)
 	{ "  -l                    suppress #line directives" },
 	{ "  -L                    enable position processing, e.g., \"%locations\"" },
 	{ "  -n                    write naked grammar" },
+	{ "  -N                    write naked quoted grammar" },
 	{ "  -o output_file        (default \"" OUTPUT_SUFFIX "\")" },
 	{ "  -p symbol_prefix      set symbol prefix (default \"yy\")" },
 	{ "  -P                    create a reentrant parser, e.g., \"%pure-parser\"" },
@@ -394,6 +402,10 @@ setflag(int ch)
 
     case 'n':
 	naked_flag = 1;
+	break;
+
+    case 'N':
+	nakedq_flag = 1;
 	break;
 
     case 'S':
@@ -498,7 +510,7 @@ getargs(int argc, char *argv[])
     if (argc > 0)
 	myname = argv[0];
 
-    while ((ch = getopt(argc, argv, "Bb:cCdEeghH:ilLno:Pp:rsStVvyuz")) != -1)
+    while ((ch = getopt(argc, argv, "Bb:cCdEeghH:ilLnNo:Pp:rsStVvyuz")) != -1)
     {
 	switch (ch)
 	{
@@ -745,6 +757,11 @@ create_file_names(void)
 	CREATE_FILE_NAME(naked_file_name, NAKED_SUFFIX);
     }
 
+    if (nakedq_flag)
+    {
+	CREATE_FILE_NAME(nakedq_file_name, NAKED_SUFFIX);
+    }
+
     if (unicc_flag)
     {
 	CREATE_FILE_NAME(unicc_file_name, UNICC_SUFFIX);
@@ -952,6 +969,13 @@ open_files(void)
 	naked_file = fopen(naked_file_name, "w");
 	if (naked_file == 0)
 	    open_error(naked_file_name);
+    }
+
+    if (nakedq_flag)
+    {
+	nakedq_file = fopen(nakedq_file_name, "w");
+	if (nakedq_file == 0)
+	    open_error(nakedq_file_name);
     }
 
     if (unicc_flag)

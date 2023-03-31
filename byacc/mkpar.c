@@ -117,7 +117,7 @@ add_reductions(int stateno, action *actions)
     for (i = m; i < n; i++)
     {
 	int ruleno = LAruleno[i];
-	unsigned *rowp = LA + i * tokensetsize;
+	bitword_t *rowp = LA + i * tokensetsize;
 
 	for (j = ntokens - 1; j >= 0; j--)
 	{

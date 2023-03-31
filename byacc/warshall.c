@@ -3,16 +3,16 @@
 #include "defs.h"
 
 static void
-transitive_closure(unsigned *R, int n)
+transitive_closure(bitword_t *R, int n)
 {
     int rowsize;
     unsigned i;
-    unsigned *rowj;
-    unsigned *rp;
-    unsigned *rend;
-    unsigned *relend;
-    unsigned *cword;
-    unsigned *rowi;
+    bitword_t *rowj;
+    bitword_t *rp;
+    bitword_t *rend;
+    bitword_t *relend;
+    bitword_t *cword;
+    bitword_t *rowi;
 
     rowsize = WORDSIZE(n);
     relend = R + n * rowsize;
@@ -22,13 +22,13 @@ transitive_closure(unsigned *R, int n)
     rowi = R;
     while (rowi < relend)
     {
-	unsigned *ccol = cword;
+	bitword_t *ccol = cword;
 
 	rowj = R;
 
 	while (rowj < relend)
 	{
-	    if (*ccol & (1U << i))
+	    if (*ccol & (ONE_AS_BITWORD << i))
 	    {
 		rp = rowi;
 		rend = rowj + rowsize;
@@ -54,12 +54,12 @@ transitive_closure(unsigned *R, int n)
 }
 
 void
-reflexive_transitive_closure(unsigned *R, int n)
+reflexive_transitive_closure(bitword_t *R, int n)
 {
     int rowsize;
     unsigned i;
-    unsigned *rp;
-    unsigned *relend;
+    bitword_t *rp;
+    bitword_t *relend;
 
     transitive_closure(R, n);
 
@@ -70,7 +70,7 @@ reflexive_transitive_closure(unsigned *R, int n)
     rp = R;
     while (rp < relend)
     {
-	*rp |= (1U << i);
+	*rp |= (ONE_AS_BITWORD << i);
 	if (++i >= BITS_PER_WORD)
 	{
 	    i = 0;

@@ -66,10 +66,18 @@
 #error "MAXTABLE is too large for this machine architecture!"
 #endif
 
-#define BITS_PER_WORD	((int) sizeof (unsigned) * CHAR_BIT)
+#ifndef BITWORD_T
+#define BITWORD_T unsigned
+//#define BITWORD_T size_t
+#define ONE_AS_BITWORD ((BITWORD_T)1)
+#endif
+
+typedef BITWORD_T bitword_t;
+
+#define BITS_PER_WORD	((int) sizeof (bitword_t) * CHAR_BIT)
 #define WORDSIZE(n)	(((n)+(BITS_PER_WORD-1))/BITS_PER_WORD)
 #define BIT(r, n)	((((r)[(n)/BITS_PER_WORD])>>((n)&(BITS_PER_WORD-1)))&1)
-#define SETBIT(r, n)	((r)[(n)/BITS_PER_WORD]|=((unsigned)1<<((n)&(BITS_PER_WORD-1))))
+#define SETBIT(r, n)	((r)[(n)/BITS_PER_WORD]|=(ONE_AS_BITWORD<<((n)&(BITS_PER_WORD-1))))
 
 /*  character names  */
 
@@ -315,6 +323,7 @@ extern char lemon_flag;
 extern char lemon_prec_flag;
 extern char ignore_prec_flag;
 extern char naked_flag;
+extern char nakedq_flag;
 extern char unicc_flag;
 extern char carburetta_flag;
 extern char sql_flag;
@@ -368,6 +377,7 @@ extern FILE *verbose_file;
 extern FILE *ebnf_file;
 extern FILE *lemon_file;
 extern FILE *naked_file;
+extern FILE *nakedq_file;
 extern FILE *unicc_file;
 extern FILE *carburetta_file;
 extern FILE *sql_file;
@@ -421,7 +431,7 @@ extern Value_t *accessing_symbol;
 extern core **state_table;
 extern shifts **shift_table;
 extern reductions **reduction_table;
-extern unsigned *LA;
+extern bitword_t *LA;
 extern Value_t *LAruleno;
 extern Value_t *lookaheads;
 extern Value_t *goto_base;
@@ -443,7 +453,7 @@ extern Value_t final_state;
 
 extern Value_t *itemset;
 extern Value_t *itemsetend;
-extern unsigned *ruleset;
+extern bitword_t *ruleset;
 
 extern param *lex_param;
 extern param *parse_param;
@@ -621,7 +631,7 @@ extern void free_symbols(void);
 extern void verbose(void);
 
 /* warshall.c */
-extern void reflexive_transitive_closure(unsigned *R, int n);
+extern void reflexive_transitive_closure(bitword_t *R, int n);
 
 #ifdef DEBUG
     /* closure.c */

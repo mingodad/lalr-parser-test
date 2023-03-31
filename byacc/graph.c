@@ -98,7 +98,7 @@ graph_LA(int ruleno)
     if (ruleno == LAruleno[larno])
     {
 	int i;
-	unsigned *rowp = LA + larno * tokensetsize;
+	bitword_t *rowp = LA + larno * tokensetsize;
 
 	fprintf(graph_file, " { ");
 	for (i = ntokens - 1; i >= 0; i--)
