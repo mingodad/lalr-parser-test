@@ -4,11 +4,11 @@
 
 Value_t *itemset;
 Value_t *itemsetend;
-unsigned *ruleset;
+bitword_t *ruleset;
 
-static unsigned *first_base;
-static unsigned *first_derives;
-static unsigned *EFF;
+static bitword_t *first_base;
+static bitword_t *first_derives;
+static bitword_t *EFF;
 
 #ifdef	DEBUG
 static void print_closure(int);
@@ -19,14 +19,14 @@ static void print_first_derives(void);
 static void
 set_EFF(void)
 {
-    unsigned *row;
+    bitword_t *row;
     int symbol;
     int rowsize;
     int i;
     int rule;
 
     rowsize = WORDSIZE(nvars);
-    EFF = NEW2(nvars * rowsize, unsigned);
+    EFF = NEW2(nvars * rowsize, bitword_t);
 
     row = EFF;
     for (i = start_symbol; i < nsyms; i++)
@@ -54,9 +54,9 @@ set_EFF(void)
 void
 set_first_derives(void)
 {
-    unsigned *rrow;
+    bitword_t *rrow;
     int j;
-    unsigned cword = 0;
+    bitword_t cword = 0;
     Value_t *rp;
 
     int rule;
@@ -66,7 +66,7 @@ set_first_derives(void)
 
     rulesetsize = WORDSIZE(nrules);
     varsetsize = WORDSIZE(nvars);
-    first_base = NEW2(nvars * rulesetsize, unsigned);
+    first_base = NEW2(nvars * rulesetsize, bitword_t);
     first_derives = first_base - ntokens * rulesetsize;
 
     set_EFF();
@@ -74,7 +74,7 @@ set_first_derives(void)
     rrow = first_derives + ntokens * rulesetsize;
     for (i = start_symbol; i < nsyms; i++)
     {
-	unsigned *vrow = EFF + ((i - ntokens) * varsetsize);
+	bitword_t *vrow = EFF + ((i - ntokens) * varsetsize);
 	unsigned k = BITS_PER_WORD;
 
 	for (j = start_symbol; j < nsyms; k++, j++)
@@ -85,7 +85,7 @@ set_first_derives(void)
 		k = 0;
 	    }
 
-	    if (cword & (1U << k))
+	    if (cword & (ONE_AS_BITWORD << k))
 	    {
 		rp = derives[j];
 		while ((rule = *rp++) >= 0)
@@ -111,12 +111,12 @@ closure(Value_t *nucleus, int n)
     unsigned ruleno;
     unsigned i;
     Value_t *csp;
-    unsigned *dsp;
-    unsigned *rsp;
+    bitword_t *dsp;
+    bitword_t *rsp;
     int rulesetsize;
 
     Value_t *csend;
-    unsigned *rsend;
+    bitword_t *rsend;
     Value_t itemno;
 
     rulesetsize = WORDSIZE(nrules);
@@ -143,13 +143,13 @@ closure(Value_t *nucleus, int n)
     csp = nucleus;
     for (rsp = ruleset; rsp < rsend; ++rsp)
     {
-	unsigned word = *rsp;
+	bitword_t word = *rsp;
 
 	if (word)
 	{
 	    for (i = 0; i < BITS_PER_WORD; ++i)
 	    {
-		if (word & (1U << i))
+		if (word & (ONE_AS_BITWORD << i))
 		{
 		    itemno = rrhs[ruleno + i];
 		    while (csp < csend && *csp < itemno)
@@ -195,8 +195,8 @@ static void
 print_EFF(void)
 {
     int i, j;
-    unsigned *rowp;
-    unsigned word;
+    bitword_t *rowp;
+    bitword_t word;
     unsigned k;
 
     printf("\n\nEpsilon Free Firsts\n");
@@ -216,7 +216,7 @@ print_EFF(void)
 		k = 0;
 	    }
 
-	    if (word & (1 << k))
+	    if (word & (ONE_AS_BIWORD << k))
 		printf("  %s", symbol_name[start_symbol + j]);
 	}
     }
@@ -227,8 +227,8 @@ print_first_derives(void)
 {
     int i;
     int j;
-    unsigned *rp;
-    unsigned cword = 0;
+    bitword_t *rp;
+    bitword_t cword = 0;
     unsigned k;
 
     printf("\n\n\nFirst Derives\n");
@@ -246,7 +246,7 @@ print_first_derives(void)
 		k = 0;
 	    }
 
-	    if (cword & (1 << k))
+	    if (cword & (ONE_AS_BIWORD << k))
 		printf("   %d\n", j);
 	}
     }

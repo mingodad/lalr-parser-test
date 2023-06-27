@@ -67,13 +67,13 @@
 #endif
 
 #ifndef BITWORD_T
-#define BITWORD_T unsigned
-//#define BITWORD_T size_t
-#define ONE_AS_BITWORD ((BITWORD_T)1)
+//#define BITWORD_T unsigned
+#define BITWORD_T size_t
 #endif
 
 typedef BITWORD_T bitword_t;
 
+#define ONE_AS_BITWORD  ((BITWORD_T)1)
 #define BITS_PER_WORD	((int) sizeof (bitword_t) * CHAR_BIT)
 #define WORDSIZE(n)	(((n)+(BITS_PER_WORD-1))/BITS_PER_WORD)
 #define BIT(r, n)	((((r)[(n)/BITS_PER_WORD])>>((n)&(BITS_PER_WORD-1)))&1)
