@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: run_test.sh,v 1.33 2021/06/19 19:33:05 tom Exp $
+# $Id: run_test.sh,v 1.37 2022/11/06 21:55:25 tom Exp $
 # vi:ts=4 sw=4:
 
 errors=0
@@ -19,6 +19,7 @@ test_diffs() {
 			-e "s%$YACC_escaped%YACC%" \
 			-e "s%^yacc\>%YACC%" \
 			-e "s%YACC:.*option.*$%YACC: error message%" \
+			-e "s%yacc:.*option.*$%YACC: error message%" \
 			-e "s%^Usage: yacc\>%Usage: YACC%" \
 			-e '/YYPATCH/s/[0-9][0-9]*/"yyyymmdd"/' \
 			-e '/#define YYPATCH/s/PATCH/CHECK/' \
@@ -38,7 +39,7 @@ test_diffs() {
 			rm -f "$CMP"
 		else
 			echo "...diff $REF"
-			diff -u "$REF" "$CMP"
+			diff -c "$REF" "$CMP"
 			errors=1
 		fi
 	fi
@@ -121,12 +122,14 @@ else
 	TEST_DIR=.
 fi
 
+#YACC="myvalgrind $PROG_DIR/yacc"
 YACC=$PROG_DIR/yacc
-YACC_escaped=`echo "$PROG_DIR/yacc" | sed -e 's/\./\\\./g'`
+YACC_escaped=`echo "$YACC" | sed -e 's/\./\\\./g'`
 
 tmpfile=temp$$
 
-ifBTYACC=`grep -F -l 'define YYBTYACC' $PROG_DIR/config.h > /dev/null; test $? != 0; echo $?`
+: "${FGREP:=grep -F}"
+ifBTYACC=`$FGREP -l 'define YYBTYACC' $PROG_DIR/config.h > /dev/null; test $? != 0; echo $?`
 
 if test "$ifBTYACC" = 0; then
 	REF_DIR=${TEST_DIR}/yacc
@@ -210,7 +213,7 @@ do
 	*)
 		root=`basename "$input" .y`
 		ROOT="test-$root"
-		prefix=${root}_
+		prefix=`echo "${root}_" | sed -e 's/[.]/_/g'`
 
 		OPTS=
 		OPT2=

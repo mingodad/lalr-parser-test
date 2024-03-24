@@ -1,4 +1,4 @@
-/* $Id: main.c,v 1.73 2021/08/08 20:39:34 tom Exp $ */
+/* $Id: main.c,v 1.74 2023/05/11 07:51:36 tom Exp $ */
 
 #include <signal.h>
 #if !defined(_WIN32) || defined(__MINGW32__)
@@ -32,111 +32,7 @@ MY_TMPFILES;
 static MY_TMPFILES *my_tmpfiles;
 #endif /* USE_MKSTEMP */
 
-char dflag;
-char dflag2;
-char gflag;
-char iflag;
-char lflag;
 static char oflag;
-char rflag;
-char sflag;
-char tflag;
-char vflag;
-char ebnf_flag;
-char lemon_flag;
-char lemon_prec_flag;
-char ignore_prec_flag;
-char naked_flag;
-char nakedq_flag;
-char unicc_flag;
-char carburetta_flag;
-char sql_flag;
-
-const char *symbol_prefix;
-const char *myname = "yacc";
-
-int lineno;
-int outline;
-
-static char default_file_prefix[] = "y";
-
-static char *file_prefix = default_file_prefix;
-
-char *code_file_name;
-char *input_file_name;
-size_t input_file_name_len = 0;
-char *defines_file_name;
-char *externs_file_name;
-
-static char *graph_file_name;
-static char *output_file_name;
-static char *verbose_file_name;
-static char *ebnf_file_name;
-static char *lemon_file_name;
-static char *naked_file_name;
-static char *nakedq_file_name;
-static char *unicc_file_name;
-static char *carburetta_file_name;
-static char *sql_file_name;
-
-FILE *action_file;	/*  a temp file, used to save actions associated    */
-			/*  with rules until the parser is written          */
-FILE *code_file;	/*  y.code.c (used when the -r option is specified) */
-FILE *defines_file;	/*  y.tab.h                                         */
-FILE *externs_file;	/*  y.tab.i                                         */
-FILE *input_file;	/*  the input file                                  */
-FILE *output_file;	/*  y.tab.c                                         */
-FILE *text_file;	/*  a temp file, used to save text until all        */
-			/*  symbols have been defined                       */
-FILE *union_file;	/*  a temp file, used to save the union             */
-			/*  definition until all symbol have been           */
-			/*  defined                                         */
-FILE *verbose_file;	/*  y.output                                        */
-FILE *ebnf_file;	/*  y.ebnf                                          */
-FILE *lemon_file;	/*  lemon.y                                         */
-FILE *naked_file;	/*  naked.y                                         */
-FILE *nakedq_file;	/*  naked.y                                         */
-FILE *unicc_file;	/*  unicc.y                                         */
-FILE *carburetta_file;	/*  carburetra.cbrt                                 */
-FILE *sql_file;         /*  sql.y                                           */
-FILE *graph_file;	/*  y.dot                                           */
-
-Value_t nitems;
-Value_t nrules;
-Value_t nsyms;
-Value_t ntokens;
-Value_t nvars;
-
-Value_t start_symbol;
-char **symbol_name;
-char **symbol_pname;
-Value_t *symbol_value;
-Value_t *symbol_prec;
-char *symbol_assoc;
-
-int pure_parser;
-int token_table;
-int error_verbose;
-
-#if defined(YYBTYACC)
-Value_t *symbol_pval;
-char **symbol_destructor;
-char **symbol_type_tag;
-int locations = 0;	/* default to no position processing */
-int backtrack = 0;	/* default is no backtracking */
-char *initial_action = NULL;
-#endif
-
-int exit_code;
-
-Value_t *ritem;
-Value_t *rlhs;
-Value_t *rrhs;
-Value_t *rprec;
-Assoc_t *rassoc;
-bucket** rprec_bucket;
-Value_t **derives;
-char *nullable;
 
 /*
  * Since fclose() is called via the signal handler, it might die.  Don't loop
@@ -152,73 +48,73 @@ char *nullable;
 static int got_intr = 0;
 
 void
-done(int k)
+done(byacc_t* S, int k)
 {
-    DO_CLOSE(input_file);
-    DO_CLOSE(output_file);
-    if (iflag)
-	DO_CLOSE(externs_file);
-    if (rflag)
-	DO_CLOSE(code_file);
+    DO_CLOSE(S->input_file);
+    DO_CLOSE(S->output_file);
+    if (S->iflag)
+	DO_CLOSE(S->externs_file);
+    if (S->rflag)
+	DO_CLOSE(S->code_file);
 
-    DO_CLOSE(action_file);
-    DO_CLOSE(defines_file);
-    DO_CLOSE(graph_file);
-    DO_CLOSE(text_file);
-    DO_CLOSE(union_file);
-    DO_CLOSE(verbose_file);
+    DO_CLOSE(S->action_file);
+    DO_CLOSE(S->defines_file);
+    DO_CLOSE(S->graph_file);
+    DO_CLOSE(S->text_file);
+    DO_CLOSE(S->union_file);
+    DO_CLOSE(S->verbose_file);
 
     if (got_intr)
 	_exit(EXIT_FAILURE);
 
 #ifdef NO_LEAKS
-    DO_FREE(input_file_name);
+    DO_FREE(S->input_file_name);
 
-    if (rflag)
-	DO_FREE(code_file_name);
+    if (S->rflag)
+	DO_FREE(S->code_file_name);
 
-    if (dflag && !dflag2)
-	DO_FREE(defines_file_name);
+    if (S->dflag && !S->dflag2)
+	DO_FREE(S->defines_file_name);
 
-    if (iflag)
-	DO_FREE(externs_file_name);
+    if (S->iflag)
+	DO_FREE(S->externs_file_name);
 
     if (oflag)
-	DO_FREE(output_file_name);
+	DO_FREE(S->output_file_name);
 
-    if (vflag)
-	DO_FREE(verbose_file_name);
+    if (S->vflag)
+	DO_FREE(S->verbose_file_name);
 
-    if (ebnf_flag)
-	DO_FREE(ebnf_file_name);
+    if (S->ebnf_flag)
+	DO_FREE(S->ebnf_file_name);
 
-    if (lemon_flag)
-	DO_FREE(lemon_file_name);
+    if (S->lemon_flag)
+	DO_FREE(S->lemon_file_name);
 
-    if (naked_flag)
-	DO_FREE(naked_file_name);
+    if (S->naked_flag)
+	DO_FREE(S->naked_file_name);
 
-    if (nakedq_flag)
-	DO_FREE(nakedq_file_name);
+    if (S->nakedq_flag)
+	DO_FREE(S->nakedq_file_name);
 
-    if (unicc_flag)
-	DO_FREE(unicc_file_name);
+    if (S->unicc_flag)
+	DO_FREE(S->unicc_file_name);
 
-    if (carburetta_flag)
-	DO_FREE(carburetta_file_name);
+    if (S->carburetta_flag)
+	DO_FREE(S->carburetta_file_name);
 
-    if (sql_flag)
-	DO_FREE(sql_file_name);
+    if (S->sql_flag)
+	DO_FREE(S->sql_file_name);
 
-    if (gflag)
-	DO_FREE(graph_file_name);
+    if (S->gflag)
+	DO_FREE(S->graph_file_name);
 
-    lr0_leaks();
-    lalr_leaks();
-    mkpar_leaks();
-    mstring_leaks();
-    output_leaks();
-    reader_leaks();
+    lr0_leaks(S);
+    lalr_leaks(S);
+    mkpar_leaks(S);
+    mstring_leaks(S);
+    output_leaks(S);
+    reader_leaks(S);
 #endif
 
     exit(k);
@@ -228,7 +124,8 @@ static void
 onintr(int sig GCC_UNUSED)
 {
     got_intr = 1;
-    done(EXIT_FAILURE);
+    //done(S, EXIT_FAILURE);
+    exit(EXIT_FAILURE);
 }
 
 static void
@@ -284,7 +181,7 @@ static const struct {
 #define USAGE_COLS (80 + sizeof(DEFINES_SUFFIX) + sizeof(OUTPUT_SUFFIX))
 
 static void
-usage(void)
+usage(byacc_t* S)
 {
     /* *INDENT-OFF* */
     static const char msg[][USAGE_COLS] =
@@ -320,7 +217,7 @@ usage(void)
     unsigned n;
 
     fflush(stdout);
-    fprintf(stderr, "Usage: %s [options] filename\n", myname);
+    fprintf(stderr, "Usage: %s [options] filename\n", S->myname);
 
     fprintf(stderr, "\nOptions:\n");
     for (n = 0; n < SIZEOF(msg); ++n)
@@ -340,100 +237,100 @@ usage(void)
 }
 
 static void
-invalid_option(const char *option)
+invalid_option(const char *option, byacc_t* S)
 {
     fprintf(stderr, "invalid option: %s\n", option);
-    usage();
+    usage(S);
 }
 
 static void
-setflag(int ch)
+setflag(byacc_t* S, int ch)
 {
     switch (ch)
     {
     case 'B':
 #if defined(YYBTYACC)
-	backtrack = 1;
+	S->backtrack = 1;
 #else
-	unsupported_flag_warning("-B", "reconfigure with --enable-btyacc");
+	unsupported_flag_warning(S, "-B", "reconfigure with --enable-btyacc");
 #endif
 	break;
 
     case 'c':
-	carburetta_flag = 1;
+	S->carburetta_flag = 1;
 	break;
 
     case 'C':
-	unicc_flag = 1;
+	S->unicc_flag = 1;
 	break;
 
     case 'd':
-	dflag = 1;
-	dflag2 = 0;
+	S->dflag = 1;
+	S->dflag2 = 0;
 	break;
 
     case 'e':
-	ebnf_flag = 1;
+	S->ebnf_flag = 1;
 	break;
 
     case 'E':
-	lemon_flag = 1;
+	S->lemon_flag = 1;
 	break;
 
     case 'g':
-	gflag = 1;
+	S->gflag = 1;
 	break;
 
     case 'i':
-	iflag = 1;
+	S->iflag = 1;
 	break;
 
     case 'l':
-	lflag = 1;
+	S->lflag = 1;
 	break;
 
     case 'L':
 #if defined(YYBTYACC)
-	locations = 1;
+	S->locations = 1;
 #else
-	unsupported_flag_warning("-L", "reconfigure with --enable-btyacc");
+	unsupported_flag_warning(S, "-L", "reconfigure with --enable-btyacc");
 #endif
 	break;
 
     case 'n':
-	naked_flag = 1;
+	S->naked_flag = 1;
 	break;
 
     case 'N':
-	nakedq_flag = 1;
+	S->nakedq_flag = 1;
 	break;
 
     case 'S':
-	sql_flag = 1;
+	S->sql_flag = 1;
 	break;
 
     case 'P':
-	pure_parser = 1;
+	S->pure_parser = 1;
 	break;
 
     case 'r':
-	rflag = 1;
+	S->rflag = 1;
 	break;
 
     case 's':
-	sflag = 1;
+	S->sflag = 1;
 	break;
 
     case 't':
-	tflag = 1;
+	S->tflag = 1;
 	break;
 
     case 'v':
-	vflag = 1;
+	S->vflag = 1;
 	break;
 
     case 'V':
-	printf("%s - %s\n", myname, VERSION);
+	printf("%s - %s\n", S->myname, VERSION);
 	exit(EXIT_SUCCESS);
 
     case 'y':
@@ -442,20 +339,20 @@ setflag(int ch)
 	break;
 
     case 'u':
-        ignore_prec_flag = 1;
+        S->ignore_prec_flag = 1;
 	break;
 
     case 'z':
-        lemon_prec_flag = 1;
+        S->lemon_prec_flag = 1;
 	break;
 
     default:
-	usage();
+	usage(S);
     }
 }
 
 static void
-getargs(int argc, char *argv[])
+getargs(byacc_t* S, int argc, char *argv[])
 {
     int i;
 #ifdef HAVE_GETOPT
@@ -482,7 +379,7 @@ getargs(int argc, char *argv[])
 	    {
 		len = (size_t)(eqls - a);
 		if (len == 0 || eqls[1] == '\0')
-		    invalid_option(a);
+		    invalid_option(a, S);
 	    }
 
 	    for (lc = 0; lc < SIZEOF(long_opts); ++lc)
@@ -490,7 +387,7 @@ getargs(int argc, char *argv[])
 		if (!strncmp(long_opts[lc].long_opt, a + 2, len - 2))
 		{
 		    if (eqls != NULL && !long_opts[lc].yacc_arg)
-			invalid_option(a);
+			invalid_option(a, S);
 		    *a++ = '-';
 		    *a++ = long_opts[lc].yacc_opt;
 		    *a = '\0';
@@ -502,36 +399,36 @@ getargs(int argc, char *argv[])
 		}
 	    }
 	    if (!strncmp(a, "--", 2))
-		invalid_option(a);
+		invalid_option(a, S);
 	}
     }
 
 #ifdef HAVE_GETOPT
     if (argc > 0)
-	myname = argv[0];
+	S->myname = argv[0];
 
     while ((ch = getopt(argc, argv, "Bb:cCdEeghH:ilLnNo:Pp:rsStVvyuz")) != -1)
     {
 	switch (ch)
 	{
 	case 'b':
-	    file_prefix = optarg;
+	    S->file_prefix = optarg;
 	    break;
 	case 'h':
-	    usage();
+	    usage(S);
 	    break;
 	case 'H':
-	    dflag = dflag2 = 1;
-	    defines_file_name = optarg;
+	    S->dflag = S->dflag2 = 1;
+	    S->defines_file_name = optarg;
 	    break;
 	case 'o':
-	    output_file_name = optarg;
+	    S->output_file_name = optarg;
 	    break;
 	case 'p':
-	    symbol_prefix = optarg;
+	    S->symbol_prefix = optarg;
 	    break;
 	default:
-	    setflag(ch);
+	    setflag(S, ch);
 	    break;
 	}
     }
@@ -541,8 +438,8 @@ getargs(int argc, char *argv[])
 	if (!strcmp(argv[i], "-"))
 	{
 	    if ((i + 1) < argc)
-		usage();
-	    input_file = stdin;
+		usage(S);
+	    S->input_file = stdin;
 	    return;
 	}
     }
@@ -563,7 +460,7 @@ getargs(int argc, char *argv[])
 	case '\0':
 	    input_file = stdin;
 	    if (i + 1 < argc)
-		usage();
+		usage(S);
 	    return;
 
 	case '-':
@@ -572,11 +469,11 @@ getargs(int argc, char *argv[])
 
 	case 'b':
 	    if (*++s)
-		file_prefix = s;
+		S->file_prefix = s;
 	    else if (++i < argc)
-		file_prefix = argv[i];
+		S->file_prefix = argv[i];
 	    else
-		usage();
+		usage(S);
 	    continue;
 
 	case 'H':
@@ -586,7 +483,7 @@ getargs(int argc, char *argv[])
 	    else if (++i < argc)
 		defines_file_name = argv[i];
 	    else
-		usage();
+		usage(S);
 	    continue;
 
 	case 'o':
@@ -595,7 +492,7 @@ getargs(int argc, char *argv[])
 	    else if (++i < argc)
 		output_file_name = argv[i];
 	    else
-		usage();
+		usage(S);
 	    continue;
 
 	case 'p':
@@ -604,11 +501,11 @@ getargs(int argc, char *argv[])
 	    else if (++i < argc)
 		symbol_prefix = argv[i];
 	    else
-		usage();
+		usage(S);
 	    continue;
 
 	default:
-	    setflag(ch);
+	    setflag(S, ch);
 	    break;
 	}
 
@@ -620,7 +517,7 @@ getargs(int argc, char *argv[])
 		goto end_of_option;
 
 	    default:
-		setflag(ch);
+		setflag(S, ch);
 		break;
 	    }
 	}
@@ -631,15 +528,15 @@ getargs(int argc, char *argv[])
 
 #endif /* HAVE_GETOPT */
     if (i + 1 != argc)
-	usage();
-    input_file_name_len = strlen(argv[i]);
-    input_file_name = TMALLOC(char, input_file_name_len + 1);
-    NO_SPACE(input_file_name);
-    strcpy(input_file_name, argv[i]);
+	usage(S);
+    S->input_file_name_len = strlen(argv[i]);
+    S->input_file_name = TMALLOC(char, S->input_file_name_len + 1);
+    NO_SPACE(S->input_file_name);
+    strcpy(S->input_file_name, argv[i]);
 }
 
 void *
-allocate(size_t n)
+allocate(byacc_t* S, size_t n)
 {
     void *p;
 
@@ -653,15 +550,15 @@ allocate(size_t n)
 }
 
 #define CREATE_FILE_NAME(dest, suffix) \
-	dest = alloc_file_name(len, suffix)
+	dest = alloc_file_name(S, len, suffix)
 
 static char *
-alloc_file_name(size_t len, const char *suffix)
+alloc_file_name(byacc_t* S, size_t len, const char *suffix)
 {
     char *result = TMALLOC(char, len + strlen(suffix) + 1);
-    if (result == 0)
-	no_space();
-    strcpy(result, file_prefix);
+    if (result == NULL)
+	on_error(S);
+    strcpy(result, S->file_prefix);
     strcpy(result + len, suffix);
     return result;
 }
@@ -681,7 +578,7 @@ find_suffix(char *name, const char *suffix)
 }
 
 static void
-create_file_names(void)
+create_file_names(byacc_t* S)
 {
     size_t len;
     const char *defines_suffix;
@@ -693,10 +590,10 @@ create_file_names(void)
     externs_suffix = EXTERNS_SUFFIX;
 
     /* compute the file_prefix from the user provided output_file_name */
-    if (output_file_name != 0)
+    if (S->output_file_name != 0)
     {
-	if (!(suffix = find_suffix(output_file_name, OUTPUT_SUFFIX))
-	    && (suffix = find_suffix(output_file_name, ".c")))
+	if (!(suffix = find_suffix(S->output_file_name, OUTPUT_SUFFIX))
+	    && (suffix = find_suffix(S->output_file_name, ".c")))
 	{
 	    defines_suffix = ".h";
 	    externs_suffix = ".i";
@@ -705,86 +602,86 @@ create_file_names(void)
 
     if (suffix != NULL)
     {
-	len = (size_t)(suffix - output_file_name);
-	file_prefix = TMALLOC(char, len + 1);
-	NO_SPACE(file_prefix);
-	strncpy(file_prefix, output_file_name, len)[len] = 0;
+	len = (size_t)(suffix - S->output_file_name);
+	S->file_prefix = TMALLOC(char, len + 1);
+	NO_SPACE(S->file_prefix);
+	strncpy(S->file_prefix, S->output_file_name, len)[len] = 0;
     }
     else
-	len = strlen(file_prefix);
+	len = strlen(S->file_prefix);
 
     /* if "-o filename" was not given */
-    if (output_file_name == 0)
+    if (S->output_file_name == 0)
     {
 	oflag = 1;
-	CREATE_FILE_NAME(output_file_name, OUTPUT_SUFFIX);
+	CREATE_FILE_NAME(S->output_file_name, OUTPUT_SUFFIX);
     }
 
-    if (rflag)
+    if (S->rflag)
     {
-	CREATE_FILE_NAME(code_file_name, CODE_SUFFIX);
+	CREATE_FILE_NAME(S->code_file_name, CODE_SUFFIX);
     }
     else
-	code_file_name = output_file_name;
+	S->code_file_name = S->output_file_name;
 
-    if (dflag && !dflag2)
+    if (S->dflag && !S->dflag2)
     {
-	CREATE_FILE_NAME(defines_file_name, defines_suffix);
+	CREATE_FILE_NAME(S->defines_file_name, defines_suffix);
     }
 
-    if (iflag)
+    if (S->iflag)
     {
-	CREATE_FILE_NAME(externs_file_name, externs_suffix);
+	CREATE_FILE_NAME(S->externs_file_name, externs_suffix);
     }
 
-    if (vflag)
+    if (S->vflag)
     {
-	CREATE_FILE_NAME(verbose_file_name, VERBOSE_SUFFIX);
+	CREATE_FILE_NAME(S->verbose_file_name, VERBOSE_SUFFIX);
     }
 
-    if (ebnf_flag)
+    if (S->gflag)
     {
-	CREATE_FILE_NAME(ebnf_file_name, EBNF_SUFFIX);
+	CREATE_FILE_NAME(S->graph_file_name, GRAPH_SUFFIX);
     }
 
-    if (lemon_flag)
+    if (S->ebnf_flag)
     {
-	CREATE_FILE_NAME(lemon_file_name, LEMON_SUFFIX);
+	CREATE_FILE_NAME(S->ebnf_file_name, EBNF_SUFFIX);
     }
 
-    if (naked_flag)
+    if (S->lemon_flag)
     {
-	CREATE_FILE_NAME(naked_file_name, NAKED_SUFFIX);
+	CREATE_FILE_NAME(S->lemon_file_name, LEMON_SUFFIX);
     }
 
-    if (nakedq_flag)
+    if (S->naked_flag)
     {
-	CREATE_FILE_NAME(nakedq_file_name, NAKED_SUFFIX);
+	CREATE_FILE_NAME(S->naked_file_name, NAKED_SUFFIX);
     }
 
-    if (unicc_flag)
+    if (S->nakedq_flag)
     {
-	CREATE_FILE_NAME(unicc_file_name, UNICC_SUFFIX);
+	CREATE_FILE_NAME(S->nakedq_file_name, NAKED_SUFFIX);
     }
 
-    if (carburetta_flag)
+    if (S->unicc_flag)
     {
-	CREATE_FILE_NAME(carburetta_file_name, CARBURETTA_SUFFIX);
+	CREATE_FILE_NAME(S->unicc_file_name, UNICC_SUFFIX);
     }
 
-    if (sql_flag)
+    if (S->carburetta_flag)
     {
-	CREATE_FILE_NAME(sql_file_name, SQL_SUFFIX);
+	CREATE_FILE_NAME(S->carburetta_file_name, CARBURETTA_SUFFIX);
     }
 
-    if (gflag)
+    if (S->sql_flag)
     {
-	CREATE_FILE_NAME(graph_file_name, GRAPH_SUFFIX);
+	CREATE_FILE_NAME(S->sql_file_name, SQL_SUFFIX);
     }
 
     if (suffix != NULL)
     {
-	FREE(file_prefix);
+	FREE(S->file_prefix);
     }
 }
 
@@ -854,7 +751,7 @@ my_mkstemp(char *temp)
  * to use, e.g., MinGW and Windows 7 where it tries to use the root directory.
  */
 static FILE *
-open_tmpfile(const char *label)
+open_tmpfile(byacc_t* S, const char *label)
 {
 #define MY_FMT "%s/%.*sXXXXXX"
     FILE *result;
@@ -923,146 +820,151 @@ open_tmpfile(const char *label)
 #endif
 
     if (result == 0)
-	open_error(label);
+	open_error(S, label);
     return result;
 #undef MY_FMT
 }
 
 static void
-open_files(void)
+open_files(byacc_t* S)
 {
-    create_file_names();
+    create_file_names(S);
 
-    if (input_file == 0)
+    if (S->input_file == 0)
     {
-	input_file = fopen(input_file_name, "r");
-	if (input_file == 0)
-	    open_error(input_file_name);
+	S->input_file = fopen(S->input_file_name, "r");
+	if (S->input_file == 0)
+	    open_error(S, S->input_file_name);
     }
 
-    action_file = open_tmpfile("action_file");
-    text_file = open_tmpfile("text_file");
+    S->action_file = open_tmpfile(S, "action_file");
+    S->text_file = open_tmpfile(S, "text_file");
 
-    if (vflag)
+    if (S->vflag)
     {
-	verbose_file = fopen(verbose_file_name, "w");
-	if (verbose_file == 0)
-	    open_error(verbose_file_name);
+	S->verbose_file = fopen(S->verbose_file_name, "w");
+	if (S->verbose_file == 0)
+	    open_error(S, S->verbose_file_name);
     }
 
-    if (ebnf_flag)
+    if (S->gflag)
     {
-	ebnf_file = fopen(ebnf_file_name, "w");
-	if (ebnf_file == 0)
-	    open_error(ebnf_file_name);
+	S->graph_file = fopen(S->graph_file_name, "w");
+	if (S->graph_file == 0)
+	    open_error(S, S->graph_file_name);
+	fprintf(S->graph_file, "digraph %s {\n", S->file_prefix);
+	fprintf(S->graph_file, "\tedge [fontsize=10];\n");
+	fprintf(S->graph_file, "\tnode [shape=box,fontsize=10];\n");
+	fprintf(S->graph_file, "\torientation=landscape;\n");
+	fprintf(S->graph_file, "\trankdir=LR;\n");
+	fprintf(S->graph_file, "\t/*\n");
+	fprintf(S->graph_file, "\tmargin=0.2;\n");
+	fprintf(S->graph_file, "\tpage=\"8.27,11.69\"; // for A4 printing\n");
+	fprintf(S->graph_file, "\tratio=auto;\n");
+	fprintf(S->graph_file, "\t*/\n");
     }
 
-    if (lemon_flag)
+    if (S->ebnf_flag)
     {
-	lemon_file = fopen(lemon_file_name, "w");
-	if (lemon_file == 0)
-	    open_error(lemon_file_name);
+	S->ebnf_file = fopen(S->ebnf_file_name, "w");
+	if (S->ebnf_file == 0)
+	    open_error(S, S->ebnf_file_name);
     }
 
-    if (naked_flag)
+    if (S->lemon_flag)
     {
-	naked_file = fopen(naked_file_name, "w");
-	if (naked_file == 0)
-	    open_error(naked_file_name);
+	S->lemon_file = fopen(S->lemon_file_name, "w");
+	if (S->lemon_file == 0)
+	    open_error(S, S->lemon_file_name);
     }
 
-    if (nakedq_flag)
+    if (S->naked_flag)
     {
-	nakedq_file = fopen(nakedq_file_name, "w");
-	if (nakedq_file == 0)
-	    open_error(nakedq_file_name);
+	S->naked_file = fopen(S->naked_file_name, "w");
+	if (S->naked_file == 0)
+	    open_error(S, S->naked_file_name);
     }
 
-    if (unicc_flag)
+    if (S->nakedq_flag)
     {
-	unicc_file = fopen(unicc_file_name, "w");
-	if (unicc_file == 0)
-	    open_error(unicc_file_name);
+	S->nakedq_file = fopen(S->nakedq_file_name, "w");
+	if (S->nakedq_file == 0)
+	    open_error(S, S->nakedq_file_name);
     }
 
-    if (carburetta_flag)
+    if (S->unicc_flag)
     {
-	carburetta_file = fopen(carburetta_file_name, "w");
-	if (carburetta_file == 0)
-	    open_error(carburetta_file_name);
+	S->unicc_file = fopen(S->unicc_file_name, "w");
+	if (S->unicc_file == 0)
+	    open_error(S, S->unicc_file_name);
     }
 
-    if (sql_flag)
+    if (S->carburetta_flag)
     {
-	sql_file = fopen(sql_file_name, "w");
-	if (sql_file == 0)
-	    open_error(sql_file_name);
+	S->carburetta_file = fopen(S->carburetta_file_name, "w");
+	if (S->carburetta_file == 0)
+	    open_error(S, S->carburetta_file_name);
     }
 
-    if (gflag)
+    if (S->sql_flag)
     {
-	graph_file = fopen(graph_file_name, "w");
-	if (graph_file == 0)
-	    open_error(graph_file_name);
-	fprintf(graph_file, "digraph %s {\n", file_prefix);
-	fprintf(graph_file, "\tedge [fontsize=10];\n");
-	fprintf(graph_file, "\tnode [shape=box,fontsize=10];\n");
-	fprintf(graph_file, "\torientation=landscape;\n");
-	fprintf(graph_file, "\trankdir=LR;\n");
-	fprintf(graph_file, "\t/*\n");
-	fprintf(graph_file, "\tmargin=0.2;\n");
-	fprintf(graph_file, "\tpage=\"8.27,11.69\"; // for A4 printing\n");
-	fprintf(graph_file, "\tratio=auto;\n");
-	fprintf(graph_file, "\t*/\n");
+	S->sql_file = fopen(S->sql_file_name, "w");
+	if (S->sql_file == 0)
+	    open_error(S, S->sql_file_name);
     }
 
-    if (dflag || dflag2)
+    if (S->dflag || S->dflag2)
     {
-	defines_file = fopen(defines_file_name, "w");
-	if (defines_file == 0)
-	    open_error(defines_file_name);
-	union_file = open_tmpfile("union_file");
+	S->defines_file = fopen(S->defines_file_name, "w");
+	if (S->defines_file == 0)
+	    open_error(S, S->defines_file_name);
+	S->union_file = open_tmpfile(S, "union_file");
     }
 
-    if (iflag)
+    if (S->iflag)
     {
-	externs_file = fopen(externs_file_name, "w");
-	if (externs_file == 0)
-	    open_error(externs_file_name);
+	S->externs_file = fopen(S->externs_file_name, "w");
+	if (S->externs_file == 0)
+	    open_error(S, S->externs_file_name);
     }
 
-    output_file = fopen(output_file_name, "w");
-    if (output_file == 0)
-	open_error(output_file_name);
+    S->output_file = fopen(S->output_file_name, "w");
+    if (S->output_file == 0)
+	open_error(S, S->output_file_name);
 
-    if (rflag)
+    if (S->rflag)
     {
-	code_file = fopen(code_file_name, "w");
-	if (code_file == 0)
-	    open_error(code_file_name);
+	S->code_file = fopen(S->code_file_name, "w");
+	if (S->code_file == 0)
+	    open_error(S, S->code_file_name);
     }
     else
-	code_file = output_file;
+	S->code_file = S->output_file;
 }
 
 int
 main(int argc, char *argv[])
 {
-    SRexpect = -1;
-    RRexpect = -1;
-    exit_code = EXIT_SUCCESS;
+    byacc_t S;
+    memset(&S, 0, sizeof(byacc_t));
+    S.SRexpect = -1;
+    S.RRexpect = -1;
+    S.myname = "yacc";
+    S.file_prefix = "y";
+    S.exit_code = EXIT_SUCCESS;
+    S.line_format = ygv_line_format;
 
     set_signals();
-    getargs(argc, argv);
-    open_files();
-    reader();
-    lr0();
-    lalr();
-    make_parser();
-    graph();
-    finalize_closure();
-    verbose();
-    output();
-    done(exit_code);
+    getargs(&S, argc, argv);
+    open_files(&S);
+    reader(&S);
+    lr0(&S);
+    lalr(&S);
+    make_parser(&S);
+    graph(&S);
+    finalize_closure(&S);
+    verbose(&S);
+    output(&S);
+    done(&S, S.exit_code);
     /*NOTREACHED */
 }

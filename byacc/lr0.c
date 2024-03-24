@@ -2,45 +2,22 @@
 
 #include "defs.h"
 
-static core *new_state(int symbol);
-static Value_t get_state(int symbol);
-static void allocate_itemsets(void);
-static void allocate_storage(void);
-static void append_states(void);
-static void free_storage(void);
-static void generate_states(void);
-static void initialize_states(void);
-static void new_itemsets(void);
-static void save_reductions(void);
-static void save_shifts(void);
-static void set_derives(void);
-static void set_nullable(void);
-
-Value_t nstates;
-core *first_state;
-shifts *first_shift;
-reductions *first_reduction;
-
-static core **state_set;
-static core *this_state;
-static core *last_state;
-static shifts *last_shift;
-static reductions *last_reduction;
-
-static int nshifts;
-static Value_t *shift_symbol;
-
-static Value_t *rules;
-
-static Value_t *redset;
-static Value_t *shiftset;
-
-static Value_t **kernel_base;
-static Value_t **kernel_end;
-static Value_t *kernel_items;
+static core *new_state(byacc_t* S, int symbol);
+static Value_t get_state(byacc_t* S, int symbol);
+static void allocate_itemsets(byacc_t* S);
+static void allocate_storage(byacc_t* S);
+static void append_states(byacc_t* S);
+static void free_storage(byacc_t* S);
+static void generate_states(byacc_t* S);
+static void initialize_states(byacc_t* S);
+static void new_itemsets(byacc_t* S);
+static void save_reductions(byacc_t* S);
+static void save_shifts(byacc_t* S);
+static void set_derives(byacc_t* S);
+static void set_nullable(byacc_t* S);
 
 static void
-allocate_itemsets(void)
+allocate_itemsets(byacc_t* S)
 {
     Value_t *itemp;
     Value_t *item_end;
@@ -50,10 +27,10 @@ allocate_itemsets(void)
     Value_t *symbol_count;
 
     count = 0;
-    symbol_count = NEW2(nsyms, Value_t);
+    symbol_count = NEW2(S->nsyms, Value_t);
 
-    item_end = ritem + nitems;
-    for (itemp = ritem; itemp < item_end; itemp++)
+    item_end = S->ritem + S->nitems;
+    for (itemp = S->ritem; itemp < item_end; itemp++)
     {
 	int symbol = *itemp;
 
@@ -64,34 +41,34 @@ allocate_itemsets(void)
 	}
     }
 
-    kernel_base = NEW2(nsyms, Value_t *);
-    kernel_items = NEW2(count, Value_t);
+    S->fs4_kernel_base = NEW2(S->nsyms, Value_t *);
+    S->fs4_kernel_items = NEW2(count, Value_t);
 
     count = 0;
     max = 0;
-    for (i = 0; i < nsyms; i++)
+    for (i = 0; i < S->nsyms; i++)
     {
-	kernel_base[i] = kernel_items + count;
+	S->fs4_kernel_base[i] = S->fs4_kernel_items + count;
 	count += symbol_count[i];
 	if (max < symbol_count[i])
 	    max = symbol_count[i];
     }
 
-    shift_symbol = symbol_count;
-    kernel_end = NEW2(nsyms, Value_t *);
+    S->fs4_shift_symbol = symbol_count;
+    S->fs4_kernel_end = NEW2(S->nsyms, Value_t *);
 }
 
 static void
-allocate_storage(void)
+allocate_storage(byacc_t* S)
 {
-    allocate_itemsets();
-    shiftset = NEW2(nsyms, Value_t);
-    redset = NEW2(nrules + 1, Value_t);
-    state_set = NEW2(nitems, core *);
+    allocate_itemsets(S);
+    S->fs4_shiftset = NEW2(S->nsyms, Value_t);
+    S->fs4_redset = NEW2(S->nrules + 1, Value_t);
+    S->fs4_state_set = NEW2(S->nitems, core *);
 }
 
 static void
-append_states(void)
+append_states(byacc_t* S)
 {
     int i;
     Value_t symbol;
@@ -99,65 +76,65 @@ append_states(void)
 #ifdef	TRACE
     fprintf(stderr, "Entering append_states()\n");
 #endif
-    for (i = 1; i < nshifts; i++)
+    for (i = 1; i < S->fs4_nshifts; i++)
     {
 	int j = i;
 
-	symbol = shift_symbol[i];
-	while (j > 0 && shift_symbol[j - 1] > symbol)
+	symbol = S->fs4_shift_symbol[i];
+	while (j > 0 && S->fs4_shift_symbol[j - 1] > symbol)
 	{
-	    shift_symbol[j] = shift_symbol[j - 1];
+	    S->fs4_shift_symbol[j] = S->fs4_shift_symbol[j - 1];
 	    j--;
 	}
-	shift_symbol[j] = symbol;
+	S->fs4_shift_symbol[j] = symbol;
     }
 
-    for (i = 0; i < nshifts; i++)
+    for (i = 0; i < S->fs4_nshifts; i++)
     {
-	symbol = shift_symbol[i];
-	shiftset[i] = get_state(symbol);
+	symbol = S->fs4_shift_symbol[i];
+	S->fs4_shiftset[i] = get_state(S, symbol);
     }
 }
 
 static void
-free_storage(void)
+free_storage(byacc_t* S)
 {
-    FREE(shift_symbol);
-    FREE(redset);
-    FREE(shiftset);
-    FREE(kernel_base);
-    FREE(kernel_end);
-    FREE(kernel_items);
-    FREE(state_set);
+    FREE(S->fs4_shift_symbol);
+    FREE(S->fs4_redset);
+    FREE(S->fs4_shiftset);
+    FREE(S->fs4_kernel_base);
+    FREE(S->fs4_kernel_end);
+    FREE(S->fs4_kernel_items);
+    FREE(S->fs4_state_set);
 }
 
 static void
-generate_states(void)
+generate_states(byacc_t* S)
 {
-    allocate_storage();
-    itemset = NEW2(nitems, Value_t);
-    ruleset = NEW2(WORDSIZE(nrules), bitword_t);
-    set_first_derives();
-    initialize_states();
+    allocate_storage(S);
+    S->itemset = NEW2(S->nitems, Value_t);
+    S->ruleset = NEW2(WORDSIZE(S->nrules), bitword_t);
+    set_first_derives(S);
+    initialize_states(S);
 
-    while (this_state)
+    while (S->fs4_this_state)
     {
-	closure(this_state->items, this_state->nitems);
-	save_reductions();
-	new_itemsets();
-	append_states();
+	closure(S, S->fs4_this_state->items, S->fs4_this_state->nitems);
+	save_reductions(S);
+	new_itemsets(S);
+	append_states(S);
 
-	if (nshifts > 0)
-	    save_shifts();
+	if (S->fs4_nshifts > 0)
+	    save_shifts(S);
 
-	this_state = this_state->next;
+	S->fs4_this_state = S->fs4_this_state->next;
     }
 
-    free_storage();
+    free_storage(S);
 }
 
 static Value_t
-get_state(int symbol)
+get_state(byacc_t* S, int symbol)
 {
     int key;
     Value_t *isp1;
@@ -169,13 +146,13 @@ get_state(int symbol)
     fprintf(stderr, "Entering get_state(%d)\n", symbol);
 #endif
 
-    isp1 = kernel_base[symbol];
-    iend = kernel_end[symbol];
+    isp1 = S->fs4_kernel_base[symbol];
+    iend = S->fs4_kernel_end[symbol];
     n = (int)(iend - isp1);
 
     key = *isp1;
-    assert(0 <= key && key < nitems);
-    sp = state_set[key];
+    assert(0 <= key && key < S->nitems);
+    sp = S->fs4_state_set[key];
     if (sp)
     {
 	int found = 0;
@@ -187,7 +164,7 @@ get_state(int symbol)
 		Value_t *isp2;
 
 		found = 1;
-		isp1 = kernel_base[symbol];
+		isp1 = S->fs4_kernel_base[symbol];
 		isp2 = sp->items;
 
 		while (found && isp1 < iend)
@@ -205,7 +182,7 @@ get_state(int symbol)
 		}
 		else
 		{
-		    sp = sp->link = new_state(symbol);
+		    sp = sp->link = new_state(S, symbol);
 		    found = 1;
 		}
 	    }
@@ -213,20 +190,20 @@ get_state(int symbol)
     }
     else
     {
-	state_set[key] = sp = new_state(symbol);
+	S->fs4_state_set[key] = sp = new_state(S, symbol);
     }
 
     return (sp->number);
 }
 
 static void
-initialize_states(void)
+initialize_states(byacc_t* S)
 {
     unsigned i;
     Value_t *start_derives;
     core *p;
 
-    start_derives = derives[start_symbol];
+    start_derives = S->derives[S->start_symbol];
     for (i = 0; start_derives[i] >= 0; ++i)
 	continue;
 
@@ -240,49 +217,49 @@ initialize_states(void)
     p->nitems = (Value_t)i;
 
     for (i = 0; start_derives[i] >= 0; ++i)
-	p->items[i] = rrhs[start_derives[i]];
+	p->items[i] = S->rrhs[start_derives[i]];
 
-    first_state = last_state = this_state = p;
-    nstates = 1;
+    S->first_state = S->fs4_last_state = S->fs4_this_state = p;
+    S->nstates = 1;
 }
 
 static void
-new_itemsets(void)
+new_itemsets(byacc_t* S)
 {
     Value_t i;
     int shiftcount;
     Value_t *isp;
     Value_t *ksp;
 
-    for (i = 0; i < nsyms; i++)
-	kernel_end[i] = 0;
+    for (i = 0; i < S->nsyms; i++)
+	S->fs4_kernel_end[i] = 0;
 
     shiftcount = 0;
-    isp = itemset;
-    while (isp < itemsetend)
+    isp = S->itemset;
+    while (isp < S->itemsetend)
     {
 	int j = *isp++;
-	Value_t symbol = ritem[j];
+	Value_t symbol = S->ritem[j];
 
 	if (symbol > 0)
 	{
-	    ksp = kernel_end[symbol];
+	    ksp = S->fs4_kernel_end[symbol];
 	    if (!ksp)
 	    {
-		shift_symbol[shiftcount++] = symbol;
-		ksp = kernel_base[symbol];
+		S->fs4_shift_symbol[shiftcount++] = symbol;
+		ksp = S->fs4_kernel_base[symbol];
 	    }
 
 	    *ksp++ = (Value_t)(j + 1);
-	    kernel_end[symbol] = ksp;
+	    S->fs4_kernel_end[symbol] = ksp;
 	}
     }
 
-    nshifts = shiftcount;
+    S->fs4_nshifts = shiftcount;
 }
 
 static core *
-new_state(int symbol)
+new_state(byacc_t* S, int symbol)
 {
     unsigned n;
     core *p;
@@ -294,26 +271,26 @@ new_state(int symbol)
     fprintf(stderr, "Entering new_state(%d)\n", symbol);
 #endif
 
-    if (nstates >= MAXYYINT)
-	fatal("too many states");
+    if (S->nstates >= MAXYYINT)
+	fatal(S, "too many states");
 
-    isp1 = kernel_base[symbol];
-    iend = kernel_end[symbol];
+    isp1 = S->fs4_kernel_base[symbol];
+    iend = S->fs4_kernel_end[symbol];
     n = (unsigned)(iend - isp1);
 
-    p = (core *)allocate((sizeof(core) + (n - 1) * sizeof(Value_t)));
+    p = (core *)allocate(S, (sizeof(core) + (n - 1) * sizeof(Value_t)));
     p->accessing_symbol = (Value_t)symbol;
-    p->number = (Value_t)nstates;
+    p->number = (Value_t)S->nstates;
     p->nitems = (Value_t)n;
 
     isp2 = p->items;
     while (isp1 < iend)
 	*isp2++ = *isp1++;
 
-    last_state->next = p;
-    last_state = p;
+    S->fs4_last_state->next = p;
+    S->fs4_last_state = p;
 
-    nstates++;
+    S->nstates++;
 
     return (p);
 }
@@ -321,34 +298,34 @@ new_state(int symbol)
 /* show_cores is used for debugging */
 #ifdef DEBUG
 void
-show_cores(void)
+show_cores(byacc_t* S)
 {
     core *p;
     int i, j, k, n;
     int itemno;
 
     k = 0;
-    for (p = first_state; p; ++k, p = p->next)
+    for (p = S->first_state; p; ++k, p = p->next)
     {
 	if (k)
 	    printf("\n");
 	printf("state %d, number = %d, accessing symbol = %s\n",
-	       k, p->number, symbol_name[p->accessing_symbol]);
+	       k, p->number, S->symbol_name[p->accessing_symbol]);
 	n = p->nitems;
 	for (i = 0; i < n; ++i)
 	{
 	    itemno = p->items[i];
 	    printf("%4d  ", itemno);
 	    j = itemno;
-	    while (ritem[j] >= 0)
+	    while (S->ritem[j] >= 0)
 		++j;
-	    printf("%s :", symbol_name[rlhs[-ritem[j]]]);
-	    j = rrhs[-ritem[j]];
+	    printf("%s :", S->symbol_name[S->rlhs[-S->ritem[j]]]);
+	    j = S->rrhs[-S->ritem[j]];
 	    while (j < itemno)
-		printf(" %s", symbol_name[ritem[j++]]);
+		printf(" %s", S->symbol_name[S->ritem[j++]]);
 	    printf(" .");
-	    while (ritem[j] >= 0)
-		printf(" %s", symbol_name[ritem[j++]]);
+	    while (S->ritem[j] >= 0)
+		printf(" %s", S->symbol_name[S->ritem[j++]]);
 	    printf("\n");
 	    fflush(stdout);
 	}
@@ -358,34 +335,34 @@ show_cores(void)
 /* show_ritems is used for debugging */
 
 void
-show_ritems(void)
+show_ritems(byacc_t* S)
 {
     int i;
 
-    for (i = 0; i < nitems; ++i)
-	printf("ritem[%d] = %d\n", i, ritem[i]);
+    for (i = 0; i < S->nitems; ++i)
+	printf("ritem[%d] = %d\n", i, S->ritem[i]);
 }
 
 /* show_rrhs is used for debugging */
 void
-show_rrhs(void)
+show_rrhs(byacc_t* S)
 {
     int i;
 
-    for (i = 0; i < nrules; ++i)
-	printf("rrhs[%d] = %d\n", i, rrhs[i]);
+    for (i = 0; i < S->nrules; ++i)
+	printf("rrhs[%d] = %d\n", i, S->rrhs[i]);
 }
 
 /* show_shifts is used for debugging */
 
 void
-show_shifts(void)
+show_shifts(byacc_t* S)
 {
     shifts *p;
     int i, j, k;
 
     k = 0;
-    for (p = first_shift; p; ++k, p = p->next)
+    for (p = S->first_shift; p; ++k, p = p->next)
     {
 	if (k)
 	    printf("\n");
@@ -399,40 +376,40 @@ show_shifts(void)
 #endif
 
 static void
-save_shifts(void)
+save_shifts(byacc_t* S)
 {
     shifts *p;
     Value_t *sp1;
     Value_t *sp2;
     Value_t *send;
 
-    p = (shifts *)allocate((sizeof(shifts) +
-			      (unsigned)(nshifts - 1) * sizeof(Value_t)));
+    p = (shifts *)allocate(S, (sizeof(shifts) +
+			      (unsigned)(S->fs4_nshifts - 1) * sizeof(Value_t)));
 
-    p->number = this_state->number;
-    p->nshifts = (Value_t)nshifts;
+    p->number = S->fs4_this_state->number;
+    p->nshifts = (Value_t)S->fs4_nshifts;
 
-    sp1 = shiftset;
+    sp1 = S->fs4_shiftset;
     sp2 = p->shift;
-    send = shiftset + nshifts;
+    send = S->fs4_shiftset + S->fs4_nshifts;
 
     while (sp1 < send)
 	*sp2++ = *sp1++;
 
-    if (last_shift)
+    if (S->fs4_last_shift)
     {
-	last_shift->next = p;
-	last_shift = p;
+	S->fs4_last_shift->next = p;
+	S->fs4_last_shift = p;
     }
     else
     {
-	first_shift = p;
-	last_shift = p;
+	S->first_shift = p;
+	S->fs4_last_shift = p;
     }
 }
 
 static void
-save_reductions(void)
+save_reductions(byacc_t* S)
 {
     Value_t *isp;
     Value_t *rp1;
@@ -440,13 +417,13 @@ save_reductions(void)
     reductions *p;
 
     count = 0;
-    for (isp = itemset; isp < itemsetend; isp++)
+    for (isp = S->itemset; isp < S->itemsetend; isp++)
     {
-	int item = ritem[*isp];
+	int item = S->ritem[*isp];
 
 	if (item < 0)
 	{
-	    redset[count++] = (Value_t)-item;
+	    S->fs4_redset[count++] = (Value_t)-item;
 	}
     }
 
@@ -455,76 +432,76 @@ save_reductions(void)
 	Value_t *rp2;
 	Value_t *rend;
 
-	p = (reductions *)allocate((sizeof(reductions) +
+	p = (reductions *)allocate(S, (sizeof(reductions) +
 				      (unsigned)(count - 1) *
 				    sizeof(Value_t)));
 
-	p->number = this_state->number;
+	p->number = S->fs4_this_state->number;
 	p->nreds = count;
 
-	rp1 = redset;
+	rp1 = S->fs4_redset;
 	rp2 = p->rules;
 	rend = rp1 + count;
 
 	while (rp1 < rend)
 	    *rp2++ = *rp1++;
 
-	if (last_reduction)
+	if (S->fs4_last_reduction)
 	{
-	    last_reduction->next = p;
-	    last_reduction = p;
+	    S->fs4_last_reduction->next = p;
+	    S->fs4_last_reduction = p;
 	}
 	else
 	{
-	    first_reduction = p;
-	    last_reduction = p;
+	    S->first_reduction = p;
+	    S->fs4_last_reduction = p;
 	}
     }
 }
 
 static void
-set_derives(void)
+set_derives(byacc_t* S)
 {
     Value_t i, k;
     int lhs;
 
-    derives = NEW2(nsyms, Value_t *);
-    rules = NEW2(nvars + nrules, Value_t);
+    S->derives = NEW2(S->nsyms, Value_t *);
+    S->fs4_rules = NEW2(S->nvars + S->nrules, Value_t);
 
     k = 0;
-    for (lhs = start_symbol; lhs < nsyms; lhs++)
+    for (lhs = S->start_symbol; lhs < S->nsyms; lhs++)
     {
-	derives[lhs] = rules + k;
-	for (i = 0; i < nrules; i++)
+	S->derives[lhs] = S->fs4_rules + k;
+	for (i = 0; i < S->nrules; i++)
 	{
-	    if (rlhs[i] == lhs)
+	    if (S->rlhs[i] == lhs)
 	    {
-		rules[k] = i;
+		S->fs4_rules[k] = i;
 		k++;
 	    }
 	}
-	rules[k] = -1;
+	S->fs4_rules[k] = -1;
 	k++;
     }
 
 #ifdef	DEBUG
-    print_derives();
+    print_derives(S);
 #endif
 }
 
 #ifdef	DEBUG
 void
-print_derives(void)
+print_derives(byacc_t* S)
 {
     int i;
     Value_t *sp;
 
     printf("\nDERIVES\n\n");
 
-    for (i = start_symbol; i < nsyms; i++)
+    for (i = S->start_symbol; i < S->nsyms; i++)
     {
-	printf("%s derives ", symbol_name[i]);
-	for (sp = derives[i]; *sp >= 0; sp++)
+	printf("%s derives ", S->symbol_name[i]);
+	for (sp = S->derives[i]; *sp >= 0; sp++)
 	{
 	    printf("  %d", *sp);
 	}
@@ -536,37 +513,37 @@ print_derives(void)
 #endif
 
 static void
-set_nullable(void)
+set_nullable(byacc_t* S)
 {
     int i, j;
     int empty;
     int done_flag;
 
-    nullable = TMALLOC(char, nsyms);
-    NO_SPACE(nullable);
+    S->nullable = TMALLOC(char, S->nsyms);
+    NO_SPACE(S->nullable);
 
-    for (i = 0; i < nsyms; ++i)
-	nullable[i] = 0;
+    for (i = 0; i < S->nsyms; ++i)
+	S->nullable[i] = 0;
 
     done_flag = 0;
     while (!done_flag)
     {
 	done_flag = 1;
-	for (i = 1; i < nitems; i++)
+	for (i = 1; i < S->nitems; i++)
 	{
 	    empty = 1;
-	    while ((j = ritem[i]) >= 0)
+	    while ((j = S->ritem[i]) >= 0)
 	    {
-		if (!nullable[j])
+		if (!S->nullable[j])
 		    empty = 0;
 		++i;
 	    }
 	    if (empty)
 	    {
-		j = rlhs[-j];
-		if (!nullable[j])
+		j = S->rlhs[-j];
+		if (!S->nullable[j])
 		{
-		    nullable[j] = 1;
+		    S->nullable[j] = 1;
 		    done_flag = 0;
 		}
 	    }
@@ -574,37 +551,37 @@ set_nullable(void)
     }
 
 #ifdef DEBUG
-    for (i = 0; i < nsyms; i++)
+    for (i = 0; i < S->nsyms; i++)
     {
-	if (nullable[i])
-	    printf("%s is nullable\n", symbol_name[i]);
+	if (S->nullable[i])
+	    printf("%s is nullable\n", S->symbol_name[i]);
 	else
-	    printf("%s is not nullable\n", symbol_name[i]);
+	    printf("%s is not nullable\n", S->symbol_name[i]);
     }
 #endif
 }
 
 void
-lr0(void)
+lr0(byacc_t* S)
 {
-    set_derives();
-    set_nullable();
-    generate_states();
+    set_derives(S);
+    set_nullable(S);
+    generate_states(S);
 }
 
 #ifdef NO_LEAKS
 void
-lr0_leaks(void)
+lr0_leaks(byacc_t* S)
 {
-    if (derives)
+    if (S->derives)
     {
-	if (derives[start_symbol] != rules)
+	if (S->derives[S->start_symbol] != S->fs4_rules)
 	{
-	    DO_FREE(derives[start_symbol]);
+	    DO_FREE(S->derives[S->start_symbol]);
 	}
-	DO_FREE(derives);
-	DO_FREE(rules);
+	DO_FREE(S->derives);
+	DO_FREE(S->fs4_rules);
     }
-    DO_FREE(nullable);
+    DO_FREE(S->nullable);
 }
 #endif

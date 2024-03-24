@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: run_make.sh,v 1.19 2021/06/19 19:27:47 tom Exp $
+# $Id: run_make.sh,v 1.21 2022/11/06 20:57:33 tom Exp $
 # vi:ts=4 sw=4:
 
 # do a test-compile on each of the ".c" files in the test-directory
@@ -16,7 +16,8 @@ else
 fi
 THIS_DIR=`pwd`
 
-ifBTYACC=`grep -F -l 'define YYBTYACC' config.h > /dev/null; test $? != 0; echo $?`
+: "${FGREP:=grep -F}"
+ifBTYACC=`$FGREP -l 'define YYBTYACC' config.h > /dev/null; test $? != 0; echo $?`
 
 if test "$ifBTYACC" = 0; then
 	REF_DIR=${TEST_DIR}/yacc
@@ -30,8 +31,10 @@ run_make() {
 	C_FILE=`basename "$1"`
 	O_FILE=`basename "$C_FILE" .c`.o
 	shift
+	RETEST=`unset CDPATH; cd $TEST_DIR; pwd`
 	cd "$REF_DIR"
-	make -f "$PROG_DIR/makefile" srcdir="$PROG_DIR" "$O_FILE" "$@"
+	test -f "$I_FILE" && rm "$I_FILE"
+	make -f "$PROG_DIR/makefile" EXTRA_CFLAGS=-I$RETEST srcdir="$PROG_DIR" "$O_FILE" "$@"
 	test -f "$O_FILE" && rm "$O_FILE"
 	cd "$THIS_DIR"
 }
@@ -97,7 +100,7 @@ then
 
 		case $input in
 		${TEST_DIR}/pure_*)
-			if test -z "`grep -F -i -l '%pure-parser' "$input"`"
+			if test -z "`$FGREP -i -l '%pure-parser' "$input"`"
 			then
 				echo "%pure-parser" >>run_make.y
 			fi
@@ -158,11 +161,11 @@ then
 			continue;
 			;;
 		*)
-			if grep -F -i '%pure-parser' "$input" >/dev/null ||
-			   grep -F -i '%parse-param' "$input" >/dev/null ||
-			   grep -F -i '%lex-param' "$input" >/dev/null ||
-			   grep -F -i '%token-table' "$input" >/dev/null ||
-			   grep -F 'YYLEX_PARAM' "$input" >/dev/null
+			if $FGREP -i '%pure-parser' "$input" >/dev/null ||
+			   $FGREP -i '%parse-param' "$input" >/dev/null ||
+			   $FGREP -i '%lex-param' "$input" >/dev/null ||
+			   $FGREP -i '%token-table' "$input" >/dev/null ||
+			   $FGREP 'YYLEX_PARAM' "$input" >/dev/null
 			then
 				echo "... skipping $input"
 				continue;

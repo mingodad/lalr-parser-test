@@ -14,7 +14,7 @@
 /*  the body either are not useful outside of semantic actions or	*/
 /*  are conditional.							*/
 
-const char *const banner[] =
+const char *const ygv_banner[] =
 {
     "/* original parser id follows */",
     "/* yysccsid[] = \"@(#)yaccpar	1.9 (Berkeley) 02/21/93\" */",
@@ -36,14 +36,14 @@ const char *const banner[] =
     0
 };
 
-const char *const xdecls[] =
+const char *const ygv_xdecls[] =
 {
     "",
     "extern int YYPARSE_DECL();",
     0
 };
 
-const char *const tables[] =
+const char *const ygv_tables[] =
 {
     "extern YYINT yylhs[];",
     "extern YYINT yylen[];",
@@ -64,7 +64,7 @@ const char *const tables[] =
     0
 };
 
-const char *const global_vars[] =
+const char *const ygv_global_vars[] =
 {
     "",
     "#if YYDEBUG",
@@ -73,7 +73,7 @@ const char *const global_vars[] =
     0
 };
 
-const char *const impure_vars[] =
+const char *const ygv_impure_vars[] =
 {
     "",
     "int      yyerrflag;",
@@ -84,7 +84,7 @@ const char *const impure_vars[] =
     0
 };
 
-const char *const hdr_defs[] =
+const char *const ygv_hdr_defs[] =
 {
     "",
     "/* define the initial stack-sizes */",
@@ -113,14 +113,14 @@ const char *const hdr_defs[] =
     0
 };
 
-const char *const hdr_vars[] =
+const char *const ygv_hdr_vars[] =
 {
     "/* variables for the parser stack */",
     "static YYSTACKDATA yystack;",
     0
 };
 
-const char *const body_vars[] =
+const char *const ygv_body_vars[] =
 {
     "    int      yyerrflag;",
     "    int      yychar;",
@@ -133,7 +133,7 @@ const char *const body_vars[] =
     0
 };
 
-const char *const body_1[] =
+const char *const ygv_body_1[] =
 {
     "",
     "#if YYDEBUG",
@@ -200,7 +200,7 @@ const char *const body_1[] =
     0
 };
 
-const char *const body_2[] =
+const char *const ygv_body_2[] =
 {
     "    int yym, yyn, yystate;",
     "#if YYDEBUG",
@@ -217,7 +217,7 @@ const char *const body_2[] =
     0
 };
 
-const char *const init_vars[] =
+const char *const ygv_init_vars[] =
 {
     "    memset(&yyval,  0, sizeof(yyval));",
     "    memset(&yylval, 0, sizeof(yylval));",
@@ -225,7 +225,7 @@ const char *const init_vars[] =
     0
 };
 
-const char *const body_3[] =
+const char *const ygv_body_3[] =
 {
     "    /* yym is set below */",
     "    /* yyn is set below */",
@@ -354,7 +354,7 @@ const char *const body_3[] =
     0
 };
 
-const char *const trailer[] =
+const char *const ygv_trailer[] =
 {
     "    }",
     "    yystack.s_mark -= yym;",
@@ -417,15 +417,15 @@ const char *const trailer[] =
 };
 
 void
-write_section(FILE * fp, const char *const section[])
+write_section(byacc_t* S, FILE * fp, const char *const section[])
 {
     int i;
     const char *s;
 
     for (i = 0; (s = section[i]) != 0; ++i)
     {
-	if (fp == code_file)
-	    ++outline;
+	if (fp == S->code_file)
+	    ++S->outline;
 	fprintf(fp, "%s\n", s);
     }
 }

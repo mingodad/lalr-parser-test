@@ -1,4 +1,4 @@
-/* $Id: mstring.c,v 1.9 2019/11/19 23:54:53 tom Exp $ */
+/* $Id: mstring.c,v 1.10 2023/02/26 10:15:01 tom Exp $ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -12,11 +12,8 @@
 #define HEAD	24
 #define TAIL	8
 
-static char *buf_ptr;
-static size_t buf_len;
-
 void
-msprintf(struct mstring *s, const char *fmt, ...)
+msprintf(byacc_t* S, struct mstring *s, const char *fmt, ...)
 {
     va_list args;
     size_t len;
@@ -27,47 +24,44 @@ msprintf(struct mstring *s, const char *fmt, ...)
     if (!s || !s->base)
 	return;
 
-    if (buf_len == 0)
+    if (S->fs5_buf_len == 0)
     {
-	buf_ptr = malloc(buf_len = 4096);
+	S->fs5_buf_ptr = malloc(S->fs5_buf_len = 4096);
     }
-    if (buf_ptr == 0)
-    {
-	return;
-    }
+    NO_SPACE(S->fs5_buf_ptr);
 
 #ifdef HAVE_VSNPRINTF
     do
     {
 	va_start(args, fmt);
-	len = (size_t) vsnprintf(buf_ptr, buf_len, fmt, args);
+	len = (size_t)vsnprintf(S->fs5_buf_ptr, S->fs5_buf_len, fmt, args);
 	va_end(args);
-	if ((changed = (len > buf_len)) != 0)
+	if ((changed = (len > S->fs5_buf_len)) != 0)
 	{
-	    char *new_ptr = realloc(buf_ptr, (buf_len * 3) / 2);
+	    char *new_ptr = realloc(S->fs5_buf_ptr, (S->fs5_buf_len * 3) / 2);
 	    if (new_ptr == 0)
 	    {
-		free(buf_ptr);
-		buf_ptr = 0;
+		free(S->fs5_buf_ptr);
+		S->fs5_buf_ptr = 0;
 		return;
 	    }
-	    buf_ptr = new_ptr;
+	    S->fs5_buf_ptr = new_ptr;
 	}
     }
     while (changed);
 #else
     va_start(args, fmt);
-    len = (size_t) vsprintf(buf_ptr, fmt, args);
+    len = (size_t)vsprintf(buf_ptr, fmt, args);
     va_end(args);
     if (len >= buf_len)
 	return;
 #endif
 
-    if (len > (size_t) (s->end - s->ptr))
+    if (len > (size_t)(s->end - s->ptr))
     {
 	char *new_base;
-	size_t cp = (size_t) (s->ptr - s->base);
-	size_t cl = (size_t) (s->end - s->base);
+	size_t cp = (size_t)(s->ptr - s->base);
+	size_t cl = (size_t)(s->end - s->base);
 	size_t nl = cl;
 	while (len > (nl - cp))
 	    nl = nl + nl + TAIL;
@@ -86,7 +80,7 @@ msprintf(struct mstring *s, const char *fmt, ...)
 	    return;
 	}
     }
-    memcpy(s->ptr, buf_ptr, len);
+    memcpy(s->ptr, S->fs5_buf_ptr, len);
     s->ptr += len;
 }
 
@@ -97,7 +91,7 @@ mputchar(struct mstring *s, int ch)
 	return ch;
     if (s->ptr == s->end)
     {
-	size_t len = (size_t) (s->end - s->base);
+	size_t len = (size_t)(s->end - s->base);
 	if ((s->base = realloc(s->base, len + len + TAIL)))
 	{
 	    s->ptr = s->base + len;
@@ -207,10 +201,10 @@ strnshash(const char *s)
 
 #ifdef NO_LEAKS
 void
-mstring_leaks(void)
+mstring_leaks(byacc_t* S)
 {
-    free(buf_ptr);
-    buf_ptr = 0;
-    buf_len = 0;
+    free(S->fs5_buf_ptr);
+    S->fs5_buf_ptr = 0;
+    S->fs5_buf_len = 0;
 }
 #endif

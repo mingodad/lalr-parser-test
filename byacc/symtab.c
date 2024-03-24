@@ -7,10 +7,6 @@
 
 #define	TABLE_SIZE 1024
 
-static bucket **symbol_table = 0;
-bucket *first_symbol;
-bucket *last_symbol;
-
 static int
 hash(const char *name)
 {
@@ -27,7 +23,7 @@ hash(const char *name)
 }
 
 bucket *
-make_bucket(const char *name)
+make_bucket(byacc_t* S, const char *name)
 {
     bucket *bp;
 
@@ -61,11 +57,11 @@ make_bucket(const char *name)
 }
 
 bucket *
-lookup(const char *name)
+lookup(byacc_t* S, const char *name)
 {
     bucket *bp, **bpp;
 
-    bpp = symbol_table + hash(name);
+    bpp = S->fs7_symbol_table + hash(name);
     bp = *bpp;
 
     while (bp)
@@ -76,47 +72,47 @@ lookup(const char *name)
 	bp = *bpp;
     }
 
-    *bpp = bp = make_bucket(name);
-    last_symbol->next = bp;
-    last_symbol = bp;
+    *bpp = bp = make_bucket(S, name);
+    S->last_symbol->next = bp;
+    S->last_symbol = bp;
 
     return (bp);
 }
 
 void
-create_symbol_table(void)
+create_symbol_table(byacc_t* S)
 {
     int i;
     bucket *bp;
 
-    symbol_table = TMALLOC(bucket *, TABLE_SIZE);
-    NO_SPACE(symbol_table);
+    S->fs7_symbol_table = TMALLOC(bucket *, TABLE_SIZE);
+    NO_SPACE(S->fs7_symbol_table);
 
     for (i = 0; i < TABLE_SIZE; i++)
-	symbol_table[i] = 0;
+	S->fs7_symbol_table[i] = 0;
 
-    bp = make_bucket("error");
+    bp = make_bucket(S, "error");
     bp->index = 1;
     bp->class = TERM;
 
-    first_symbol = bp;
-    last_symbol = bp;
-    symbol_table[hash("error")] = bp;
+    S->first_symbol = bp;
+    S->last_symbol = bp;
+    S->fs7_symbol_table[hash("error")] = bp;
 }
 
 void
-free_symbol_table(void)
+free_symbol_table(byacc_t* S)
 {
-    FREE(symbol_table);
-    symbol_table = 0;
+    FREE(S->fs7_symbol_table);
+    S->fs7_symbol_table = 0;
 }
 
 void
-free_symbols(void)
+free_symbols(byacc_t* S)
 {
     bucket *p, *q;
 
-    for (p = first_symbol; p; p = q)
+    for (p = S->first_symbol; p; p = q)
     {
 	q = p->next;
 	FREE(p);

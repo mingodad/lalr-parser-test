@@ -1,44 +1,47 @@
-/* $Id: error.c,v 1.14 2016/12/02 18:35:55 tom Exp $ */
+/* $Id: error.c,v 1.17 2023/05/18 21:38:35 tom Exp $ */
 
 /* routines for printing error messages  */
 
 #include "defs.h"
 
 void
-fatal(const char *msg)
+fatal(byacc_t* S, const char *msg)
 {
-    fprintf(stderr, "%s: f - %s\n", myname, msg);
-    done(2);
+    fprintf(stderr, "%s: f - %s\n", S->myname, msg);
+    done(S, 2);
 }
 
 void
-no_space(void)
+on_error(byacc_t* S)
 {
-    fprintf(stderr, "%s: f - out of space\n", myname);
-    done(2);
+    const char *msg;
+    if (errno && (msg = strerror(errno)) != NULL)
+	fatal(S, msg);
+    else
+	fatal(S, "unknown error");
 }
 
 void
-open_error(const char *filename)
+open_error(byacc_t* S, const char *filename)
 {
-    fprintf(stderr, "%s: f - cannot open \"%s\"\n", myname, filename);
-    done(2);
+    fprintf(stderr, "%s: f - cannot open \"%s\"\n", S->myname, filename);
+    done(S, 2);
 }
 
 void
-missing_brace(void)
+missing_brace(byacc_t* S)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", missing '}'\n",
-	    myname, lineno, input_file_name);
-    done(1);
+	    S->myname, S->lineno, S->input_file_name);
+    done(S, 1);
 }
 
 void
-unexpected_EOF(void)
+unexpected_EOF(byacc_t* S)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", unexpected end-of-file\n",
-	    myname, lineno, input_file_name);
-    done(1);
+	    S->myname, S->lineno, S->input_file_name);
+    done(S, 1);
 }
 
 static void
@@ -68,336 +71,354 @@ print_pos(const char *st_line, const char *st_cptr)
 }
 
 void
-syntax_error(int st_lineno, char *st_line, char *st_cptr)
+syntax_error(byacc_t* S, int st_lineno, char *st_line, char *st_cptr)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", syntax error\n",
-	    myname, st_lineno, input_file_name);
+	    S->myname, st_lineno, S->input_file_name);
     print_pos(st_line, st_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-unterminated_comment(const struct ainfo *a)
+unexpected_value(byacc_t* S, const struct ainfo *a)
+{
+    fprintf(stderr, "%s: e - line %d of \"%s\", unexpected value\n",
+	    S->myname, a->a_lineno, S->input_file_name);
+    print_pos(a->a_line, a->a_cptr);
+    done(S, 1);
+}
+
+void
+unterminated_comment(byacc_t* S, const struct ainfo *a)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", unmatched /*\n",
-	    myname, a->a_lineno, input_file_name);
+	    S->myname, a->a_lineno, S->input_file_name);
     print_pos(a->a_line, a->a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-unterminated_string(const struct ainfo *a)
+unterminated_string(byacc_t* S, const struct ainfo *a)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", unterminated string\n",
-	    myname, a->a_lineno, input_file_name);
+	    S->myname, a->a_lineno, S->input_file_name);
     print_pos(a->a_line, a->a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-unterminated_text(const struct ainfo *a)
+unterminated_text(byacc_t* S, const struct ainfo *a)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", unmatched %%{\n",
-	    myname, a->a_lineno, input_file_name);
+	    S->myname, a->a_lineno, S->input_file_name);
     print_pos(a->a_line, a->a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-unterminated_union(const struct ainfo *a)
+unterminated_union(byacc_t* S, const struct ainfo *a)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", unterminated %%union \
-declaration\n", myname, a->a_lineno, input_file_name);
+declaration\n", S->myname, a->a_lineno, S->input_file_name);
     print_pos(a->a_line, a->a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-over_unionized(char *u_cptr)
+over_unionized(byacc_t* S, char *u_cptr)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", too many %%union \
-declarations\n", myname, lineno, input_file_name);
-    print_pos(line, u_cptr);
-    done(1);
+declarations\n", S->myname, S->lineno, S->input_file_name);
+    print_pos(S->line, u_cptr);
+    done(S, 1);
 }
 
 void
-illegal_tag(int t_lineno, char *t_line, char *t_cptr)
+illegal_tag(byacc_t* S, int t_lineno, char *t_line, char *t_cptr)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", illegal tag\n",
-	    myname, t_lineno, input_file_name);
+	    S->myname, t_lineno, S->input_file_name);
     print_pos(t_line, t_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-illegal_character(char *c_cptr)
+illegal_character(byacc_t* S, char *c_cptr)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", illegal character\n",
-	    myname, lineno, input_file_name);
-    print_pos(line, c_cptr);
-    done(1);
+	    S->myname, S->lineno, S->input_file_name);
+    print_pos(S->line, c_cptr);
+    done(S, 1);
 }
 
 void
-used_reserved(char *s)
+used_reserved(byacc_t* S, char *s)
 {
     fprintf(stderr,
 	    "%s: e - line %d of \"%s\", illegal use of reserved symbol \
-%s\n", myname, lineno, input_file_name, s);
-    done(1);
+%s\n", S->myname, S->lineno, S->input_file_name, s);
+    done(S, 1);
 }
 
 void
-tokenized_start(char *s)
+tokenized_start(byacc_t* S, char *s)
 {
     fprintf(stderr,
 	    "%s: e - line %d of \"%s\", the start symbol %s cannot be \
-declared to be a token\n", myname, lineno, input_file_name, s);
-    done(1);
+declared to be a token\n", S->myname, S->lineno, S->input_file_name, s);
+    done(S, 1);
 }
 
 void
-retyped_warning(char *s)
+retyped_warning(byacc_t* S, char *s)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", the type of %s has been \
-redeclared\n", myname, lineno, input_file_name, s);
+redeclared\n", S->myname, S->lineno, S->input_file_name, s);
 }
 
 void
-reprec_warning(char *s)
+reprec_warning(byacc_t* S, char *s)
 {
     fprintf(stderr,
 	    "%s: w - line %d of \"%s\", the precedence of %s has been \
-redeclared\n", myname, lineno, input_file_name, s);
+redeclared\n", S->myname, S->lineno, S->input_file_name, s);
 }
 
 void
-revalued_warning(char *s)
+revalued_warning(byacc_t* S, char *s)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", the value of %s has been \
-redeclared\n", myname, lineno, input_file_name, s);
+redeclared\n", S->myname, S->lineno, S->input_file_name, s);
 }
 
 void
-terminal_start(char *s)
+terminal_start(byacc_t* S, char *s)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", the start symbol %s is a \
-token\n", myname, lineno, input_file_name, s);
-    done(1);
+token\n", S->myname, S->lineno, S->input_file_name, s);
+    done(S, 1);
 }
 
 void
-restarted_warning(void)
+restarted_warning(byacc_t* S)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", the start symbol has been \
-redeclared\n", myname, lineno, input_file_name);
+redeclared\n", S->myname, S->lineno, S->input_file_name);
 }
 
 void
-no_grammar(void)
+no_grammar(byacc_t* S)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", no grammar has been \
-specified\n", myname, lineno, input_file_name);
-    done(1);
+specified\n", S->myname, S->lineno, S->input_file_name);
+    done(S, 1);
 }
 
 void
-terminal_lhs(int s_lineno)
+terminal_lhs(byacc_t* S, int s_lineno)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", a token appears on the lhs \
-of a production\n", myname, s_lineno, input_file_name);
-    done(1);
+of a production\n", S->myname, s_lineno, S->input_file_name);
+    done(S, 1);
 }
 
 void
-prec_redeclared(void)
+prec_redeclared(byacc_t* S)
 {
     fprintf(stderr, "%s: w - line %d of  \"%s\", conflicting %%prec \
-specifiers\n", myname, lineno, input_file_name);
+specifiers\n", S->myname, S->lineno, S->input_file_name);
 }
 
 void
-unterminated_action(const struct ainfo *a)
+unterminated_action(byacc_t* S, const struct ainfo *a)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", unterminated action\n",
-	    myname, a->a_lineno, input_file_name);
+	    S->myname, a->a_lineno, S->input_file_name);
     print_pos(a->a_line, a->a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-dollar_warning(int a_lineno, int i)
+dollar_warning(byacc_t* S, int a_lineno, int i)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", $%d references beyond the \
-end of the current rule\n", myname, a_lineno, input_file_name, i);
+end of the current rule\n", S->myname, a_lineno, S->input_file_name, i);
 }
 
 void
-dollar_error(int a_lineno, char *a_line, char *a_cptr)
+dollar_error(byacc_t* S, int a_lineno, char *a_line, char *a_cptr)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", illegal $-name\n",
-	    myname, a_lineno, input_file_name);
+	    S->myname, a_lineno, S->input_file_name);
     print_pos(a_line, a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-untyped_lhs(void)
+dislocations_warning(byacc_t* S)
+{
+    fprintf(stderr, "%s: e - line %d of \"%s\", expected %%locations\n",
+	    S->myname, S->lineno, S->input_file_name);
+}
+
+void
+untyped_lhs(byacc_t* S)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", $$ is untyped\n",
-	    myname, lineno, input_file_name);
-    done(1);
+	    S->myname, S->lineno, S->input_file_name);
+    done(S, 1);
 }
 
 void
-untyped_rhs(int i, char *s)
+untyped_rhs(byacc_t* S, int i, char *s)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", $%d (%s) is untyped\n",
-	    myname, lineno, input_file_name, i, s);
-    done(1);
+	    S->myname, S->lineno, S->input_file_name, i, s);
+    done(S, 1);
 }
 
 void
-unknown_rhs(int i)
+unknown_rhs(byacc_t* S, int i)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", $%d is untyped\n",
-	    myname, lineno, input_file_name, i);
-    done(1);
+	    S->myname, S->lineno, S->input_file_name, i);
+    done(S, 1);
 }
 
 void
-default_action_warning(char *s)
+default_action_warning(byacc_t* S, char *s)
 {
     fprintf(stderr,
 	    "%s: w - line %d of \"%s\", the default action for %s assigns an \
 undefined value to $$\n",
-	    myname, lineno, input_file_name, s);
+	    S->myname, S->lineno, S->input_file_name, s);
 }
 
 void
-undefined_goal(char *s)
+undefined_goal(byacc_t* S, char *s)
 {
-    fprintf(stderr, "%s: e - the start symbol %s is undefined\n", myname, s);
-    done(1);
+    fprintf(stderr, "%s: e - the start symbol %s is undefined\n", S->myname, s);
+    done(S, 1);
 }
 
 void
-undefined_symbol_warning(char *s)
+undefined_symbol_warning(byacc_t* S, char *s)
 {
-    fprintf(stderr, "%s: w - the symbol %s is undefined\n", myname, s);
+    fprintf(stderr, "%s: w - the symbol %s is undefined\n", S->myname, s);
 }
 
 #if ! defined(YYBTYACC)
 void
-unsupported_flag_warning(const char *flag, const char *details)
+unsupported_flag_warning(byacc_t* S, const char *flag, const char *details)
 {
     fprintf(stderr, "%s: w - %s flag unsupported, %s\n",
-	    myname, flag, details);
+	    S->myname, flag, details);
 }
 #endif
 
 #if defined(YYBTYACC)
 void
-at_warning(int a_lineno, int i)
+at_warning(byacc_t* S, int a_lineno, int i)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", @%d references beyond the \
-end of the current rule\n", myname, a_lineno, input_file_name, i);
+end of the current rule\n", S->myname, a_lineno, S->input_file_name, i);
 }
 
 void
-at_error(int a_lineno, char *a_line, char *a_cptr)
+at_error(byacc_t* S, int a_lineno, char *a_line, char *a_cptr)
 {
     fprintf(stderr,
 	    "%s: e - line %d of \"%s\", illegal @$ or @N reference\n",
-	    myname, a_lineno, input_file_name);
+	    S->myname, a_lineno, S->input_file_name);
     print_pos(a_line, a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-unterminated_arglist(const struct ainfo *a)
+unterminated_arglist(byacc_t* S, const struct ainfo *a)
 {
     fprintf(stderr,
 	    "%s: e - line %d of \"%s\", unterminated argument list\n",
-	    myname, a->a_lineno, input_file_name);
+	    S->myname, a->a_lineno, S->input_file_name);
     print_pos(a->a_line, a->a_cptr);
-    done(1);
+    done(S, 1);
 }
 
 void
-arg_number_disagree_warning(int a_lineno, char *a_name)
+arg_number_disagree_warning(byacc_t* S, int a_lineno, char *a_name)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", number of arguments of %s "
 	    "doesn't agree with previous declaration\n",
-	    myname, a_lineno, input_file_name, a_name);
+	    S->myname, a_lineno, S->input_file_name, a_name);
 }
 
 void
-bad_formals(void)
+bad_formals(byacc_t* S)
 {
     fprintf(stderr, "%s: e - line %d of \"%s\", bad formal argument list\n",
-	    myname, lineno, input_file_name);
-    print_pos(line, cptr);
-    done(1);
+	    S->myname, S->lineno, S->input_file_name);
+    print_pos(S->line, S->cptr);
+    done(S, 1);
 }
 
 void
-arg_type_disagree_warning(int a_lineno, int i, char *a_name)
+arg_type_disagree_warning(byacc_t* S, int a_lineno, int i, char *a_name)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", type of argument %d "
 	    "to %s doesn't agree with previous declaration\n",
-	    myname, a_lineno, input_file_name, i, a_name);
+	    S->myname, a_lineno, S->input_file_name, i, a_name);
 }
 
 void
-unknown_arg_warning(int d_lineno, const char *dlr_opt, const char *d_arg, const char
-		    *d_line, const char *d_cptr)
+unknown_arg_warning(byacc_t* S, int d_lineno, const char *dlr_opt,
+			const char *d_arg,
+			const char *d_line,
+			const char *d_cptr)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", unknown argument %s%s\n",
-	    myname, d_lineno, input_file_name, dlr_opt, d_arg);
+	    S->myname, d_lineno, S->input_file_name, dlr_opt, d_arg);
     print_pos(d_line, d_cptr);
 }
 
 void
-untyped_arg_warning(int a_lineno, const char *dlr_opt, const char *a_name)
+untyped_arg_warning(byacc_t* S, int a_lineno, const char *dlr_opt, const char *a_name)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", untyped argument %s%s\n",
-	    myname, a_lineno, input_file_name, dlr_opt, a_name);
+	    S->myname, a_lineno, S->input_file_name, dlr_opt, a_name);
 }
 
 void
-wrong_number_args_warning(const char *which, const char *a_name)
+wrong_number_args_warning(byacc_t* S, const char *which, const char *a_name)
 {
     fprintf(stderr,
 	    "%s: w - line %d of \"%s\", wrong number of %sarguments for %s\n",
-	    myname, lineno, input_file_name, which, a_name);
-    print_pos(line, cptr);
+	    S->myname, S->lineno, S->input_file_name, which, a_name);
+    print_pos(S->line, S->cptr);
 }
 
 void
-wrong_type_for_arg_warning(int i, char *a_name)
+wrong_type_for_arg_warning(byacc_t* S, int i, char *a_name)
 {
     fprintf(stderr,
 	    "%s: w - line %d of \"%s\", wrong type for default argument %d to %s\n",
-	    myname, lineno, input_file_name, i, a_name);
-    print_pos(line, cptr);
+	    S->myname, S->lineno, S->input_file_name, i, a_name);
+    print_pos(S->line, S->cptr);
 }
 
 void
-start_requires_args(char *a_name)
+start_requires_args(byacc_t* S, char *a_name)
 {
     fprintf(stderr,
 	    "%s: w - line %d of \"%s\", start symbol %s requires arguments\n",
-	    myname, 0, input_file_name, a_name);
+	    S->myname, 0, S->input_file_name, a_name);
 
 }
 
 void
-destructor_redeclared_warning(const struct ainfo *a)
+destructor_redeclared_warning(byacc_t* S, const struct ainfo *a)
 {
     fprintf(stderr, "%s: w - line %d of \"%s\", destructor redeclared\n",
-	    myname, a->a_lineno, input_file_name);
+	    S->myname, a->a_lineno, S->input_file_name);
     print_pos(a->a_line, a->a_cptr);
 }
 #endif

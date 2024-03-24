@@ -1,9 +1,9 @@
-/* $Id: output.c,v 1.99 2021/08/01 23:45:04 tom Exp $ */
+/* $Id: output.c,v 1.101 2023/05/16 21:19:48 tom Exp $ */
 
 #include "defs.h"
 
-#define StaticOrR	(rflag ? "" : "static ")
-#define CountLine(fp)   (!rflag || ((fp) == code_file))
+#define StaticOrR	(S->rflag ? "" : "static ")
+#define CountLine(fp)   (!S->rflag || ((fp) == S->code_file))
 
 #if defined(YYBTYACC)
 #define PER_STATE 3
@@ -11,39 +11,19 @@
 #define PER_STATE 2
 #endif
 
-static int nvectors;
-static int nentries;
-static Value_t **froms;
-static Value_t **tos;
-#if defined(YYBTYACC)
-static Value_t *conflicts = NULL;
-static Value_t nconflicts = 0;
-#endif
-static Value_t *tally;
-static Value_t *width;
-static Value_t *state_count;
-static Value_t *order;
-static Value_t *base;
-static Value_t *pos;
-static int maxtable;
-static Value_t *table;
-static Value_t *check;
-static int lowzero;
-static long high;
-
 static void
-putc_code(FILE * fp, int c)
+putc_code(byacc_t* S, FILE * fp, int c)
 {
-    if ((c == '\n') && (fp == code_file))
-	++outline;
+    if ((c == '\n') && (fp == S->code_file))
+	++S->outline;
     putc(c, fp);
 }
 
 static void
-putl_code(FILE * fp, const char *s)
+putl_code(byacc_t* S, FILE * fp, const char *s)
 {
-    if (fp == code_file)
-	++outline;
+    if (fp == S->code_file)
+	++S->outline;
     fputs(s, fp);
 }
 
@@ -91,341 +71,341 @@ puts_param_names(FILE * fp, param *list, int more)
 }
 
 static void
-write_code_lineno(FILE * fp)
+write_code_lineno(byacc_t* S, FILE * fp)
 {
-    if (!lflag && (fp == code_file))
+    if (!S->lflag && (fp == S->code_file))
     {
-	++outline;
-	fprintf_lineno(fp, outline + 1, code_file_name);
+	++S->outline;
+	fprintf_lineno(fp, S->outline + 1, S->code_file_name);
     }
 }
 
 static void
-write_input_lineno(void)
+write_input_lineno(byacc_t* S)
 {
-    if (!lflag)
+    if (!S->lflag)
     {
-	++outline;
-	fprintf_lineno(code_file, lineno, input_file_name);
+	++S->outline;
+	fprintf_lineno(S->code_file, S->lineno, S->input_file_name);
     }
 }
 
 static void
-define_prefixed(FILE * fp, const char *name)
+define_prefixed(byacc_t* S, FILE * fp, const char *name)
 {
     int bump_line = CountLine(fp);
     if (bump_line)
-	++outline;
+	++S->outline;
     fprintf(fp, "\n");
 
     if (bump_line)
-	++outline;
+	++S->outline;
     fprintf(fp, "#ifndef %s\n", name);
 
     if (bump_line)
-	++outline;
-    fprintf(fp, "#define %-10s %s%s\n", name, symbol_prefix, name + 2);
+	++S->outline;
+    fprintf(fp, "#define %-10s %s%s\n", name, S->symbol_prefix, name + 2);
 
     if (bump_line)
-	++outline;
+	++S->outline;
     fprintf(fp, "#endif /* %s */\n", name);
 }
 
 static void
-output_prefix(FILE * fp)
+output_prefix(byacc_t* S, FILE * fp)
 {
-    if (symbol_prefix == NULL)
+    if (S->symbol_prefix == NULL)
     {
-	symbol_prefix = "yy";
+	S->symbol_prefix = "yy";
     }
     else
     {
-	define_prefixed(fp, "yyparse");
-	define_prefixed(fp, "yylex");
-	define_prefixed(fp, "yyerror");
-	define_prefixed(fp, "yychar");
-	define_prefixed(fp, "yyval");
-	define_prefixed(fp, "yylval");
-	define_prefixed(fp, "yydebug");
-	define_prefixed(fp, "yynerrs");
-	define_prefixed(fp, "yyerrflag");
-	define_prefixed(fp, "yylhs");
-	define_prefixed(fp, "yylen");
-	define_prefixed(fp, "yydefred");
+	define_prefixed(S, fp, "yyparse");
+	define_prefixed(S, fp, "yylex");
+	define_prefixed(S, fp, "yyerror");
+	define_prefixed(S, fp, "yychar");
+	define_prefixed(S, fp, "yyval");
+	define_prefixed(S, fp, "yylval");
+	define_prefixed(S, fp, "yydebug");
+	define_prefixed(S, fp, "yynerrs");
+	define_prefixed(S, fp, "yyerrflag");
+	define_prefixed(S, fp, "yylhs");
+	define_prefixed(S, fp, "yylen");
+	define_prefixed(S, fp, "yydefred");
 #if defined(YYBTYACC)
-	define_prefixed(fp, "yystos");
+	define_prefixed(S, fp, "yystos");
 #endif
-	define_prefixed(fp, "yydgoto");
-	define_prefixed(fp, "yysindex");
-	define_prefixed(fp, "yyrindex");
-	define_prefixed(fp, "yygindex");
-	define_prefixed(fp, "yytable");
-	define_prefixed(fp, "yycheck");
-	define_prefixed(fp, "yyname");
-	define_prefixed(fp, "yyrule");
+	define_prefixed(S, fp, "yydgoto");
+	define_prefixed(S, fp, "yysindex");
+	define_prefixed(S, fp, "yyrindex");
+	define_prefixed(S, fp, "yygindex");
+	define_prefixed(S, fp, "yytable");
+	define_prefixed(S, fp, "yycheck");
+	define_prefixed(S, fp, "yyname");
+	define_prefixed(S, fp, "yyrule");
 #if defined(YYBTYACC)
-	if (locations)
+	if (S->locations)
 	{
-	    define_prefixed(fp, "yyloc");
-	    define_prefixed(fp, "yylloc");
+	    define_prefixed(S, fp, "yyloc");
+	    define_prefixed(S, fp, "yylloc");
 	}
-	putc_code(fp, '\n');
-	putl_code(fp, "#if YYBTYACC\n");
+	putc_code(S, fp, '\n');
+	putl_code(S, fp, "#if YYBTYACC\n");
 
-	define_prefixed(fp, "yycindex");
-	define_prefixed(fp, "yyctable");
+	define_prefixed(S, fp, "yycindex");
+	define_prefixed(S, fp, "yyctable");
 
-	putc_code(fp, '\n');
-	putl_code(fp, "#endif /* YYBTYACC */\n");
-	putc_code(fp, '\n');
+	putc_code(S, fp, '\n');
+	putl_code(S, fp, "#endif /* YYBTYACC */\n");
+	putc_code(S, fp, '\n');
 #endif
     }
     if (CountLine(fp))
-	++outline;
-    fprintf(fp, "#define YYPREFIX \"%s\"\n", symbol_prefix);
+	++S->outline;
+    fprintf(fp, "#define YYPREFIX \"%s\"\n", S->symbol_prefix);
 }
 
 static void
-output_code_lines(FILE * fp, int cl)
+output_code_lines(byacc_t* S, FILE * fp, int cl)
 {
-    if (code_lines[cl].lines != NULL)
+    if (S->code_lines[cl].lines != NULL)
     {
-	if (fp == code_file)
+	if (fp == S->code_file)
 	{
-	    outline += (int)code_lines[cl].num;
-	    outline += 3;
+	    S->outline += (int)S->code_lines[cl].num;
+	    S->outline += 3;
 	    fprintf(fp, "\n");
 	}
-	fprintf(fp, "/* %%code \"%s\" block start */\n", code_lines[cl].name);
-	fputs(code_lines[cl].lines, fp);
-	fprintf(fp, "/* %%code \"%s\" block end */\n", code_lines[cl].name);
-	if (fp == code_file)
+	fprintf(fp, "/* %%code \"%s\" block start */\n", S->code_lines[cl].name);
+	fputs(S->code_lines[cl].lines, fp);
+	fprintf(fp, "/* %%code \"%s\" block end */\n", S->code_lines[cl].name);
+	if (fp == S->code_file)
 	{
-	    write_code_lineno(fp);
+	    write_code_lineno(S, fp);
 	}
     }
 }
 
 static void
-output_newline(void)
+output_newline(byacc_t* S)
 {
-    if (!rflag)
-	++outline;
-    putc('\n', output_file);
+    if (!S->rflag)
+	++S->outline;
+    putc('\n', S->output_file);
 }
 
 static void
-output_line(const char *value)
+output_line(byacc_t* S, const char *value)
 {
-    fputs(value, output_file);
-    output_newline();
+    fputs(value, S->output_file);
+    output_newline(S);
 }
 
 static void
-output_int(int value)
+output_int(byacc_t* S, int value)
 {
-    fprintf(output_file, "%5d,", value);
+    fprintf(S->output_file, "%5d,", value);
 }
 
 static void
-start_int_table(const char *name, int value)
+start_int_table(byacc_t* S, const char *name, int value)
 {
-    int need = 34 - (int)(strlen(symbol_prefix) + strlen(name));
+    int need = 34 - (int)(strlen(S->symbol_prefix) + strlen(name));
 
     if (need < 6)
 	need = 6;
-    fprintf(output_file,
+    fprintf(S->output_file,
 	    "%sconst YYINT %s%s[] = {%*d,",
-	    StaticOrR, symbol_prefix, name, need, value);
+	    StaticOrR, S->symbol_prefix, name, need, value);
 }
 
 static void
-start_str_table(const char *name)
+start_str_table(byacc_t* S, const char *name)
 {
-    fprintf(output_file,
+    fprintf(S->output_file,
 	    "%sconst char *const %s%s[] = {",
-	    StaticOrR, symbol_prefix, name);
-    output_newline();
+	    StaticOrR, S->symbol_prefix, name);
+    output_newline(S);
 }
 
 static void
-end_table(void)
+end_table(byacc_t* S)
 {
-    output_newline();
-    output_line("};");
+    output_newline(S);
+    output_line(S, "};");
 }
 
 static void
-output_stype(FILE * fp)
+output_stype(byacc_t* S, FILE * fp)
 {
-    if (!unionized && ntags == 0)
+    if (!S->unionized && S->ntags == 0)
     {
-	putc_code(fp, '\n');
-	putl_code(fp, "#if "
+	putc_code(S, fp, '\n');
+	putl_code(S, fp, "#if "
 		  "! defined(YYSTYPE) && "
 		  "! defined(YYSTYPE_IS_DECLARED)\n");
-	putl_code(fp, "/* Default: YYSTYPE is the semantic value type. */\n");
-	putl_code(fp, "typedef int YYSTYPE;\n");
-	putl_code(fp, "# define YYSTYPE_IS_DECLARED 1\n");
-	putl_code(fp, "#endif\n");
+	putl_code(S, fp, "/* Default: YYSTYPE is the semantic value type. */\n");
+	putl_code(S, fp, "typedef int YYSTYPE;\n");
+	putl_code(S, fp, "# define YYSTYPE_IS_DECLARED 1\n");
+	putl_code(S, fp, "#endif\n");
     }
 }
 
 #if defined(YYBTYACC)
 static void
-output_ltype(FILE * fp)
+output_ltype(byacc_t* S, FILE * fp)
 {
-    putc_code(fp, '\n');
-    putl_code(fp, "#if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED\n");
-    putl_code(fp, "/* Default: YYLTYPE is the text position type. */\n");
-    putl_code(fp, "typedef struct YYLTYPE\n");
-    putl_code(fp, "{\n");
-    putl_code(fp, "    int first_line;\n");
-    putl_code(fp, "    int first_column;\n");
-    putl_code(fp, "    int last_line;\n");
-    putl_code(fp, "    int last_column;\n");
-    putl_code(fp, "    unsigned source;\n");
-    putl_code(fp, "} YYLTYPE;\n");
-    putl_code(fp, "#define YYLTYPE_IS_DECLARED 1\n");
-    putl_code(fp, "#endif\n");
-    putl_code(fp, "#define YYRHSLOC(rhs, k) ((rhs)[k])\n");
+    putc_code(S, fp, '\n');
+    putl_code(S, fp, "#if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED\n");
+    putl_code(S, fp, "/* Default: YYLTYPE is the text position type. */\n");
+    putl_code(S, fp, "typedef struct YYLTYPE\n");
+    putl_code(S, fp, "{\n");
+    putl_code(S, fp, "    int first_line;\n");
+    putl_code(S, fp, "    int first_column;\n");
+    putl_code(S, fp, "    int last_line;\n");
+    putl_code(S, fp, "    int last_column;\n");
+    putl_code(S, fp, "    unsigned source;\n");
+    putl_code(S, fp, "} YYLTYPE;\n");
+    putl_code(S, fp, "#define YYLTYPE_IS_DECLARED 1\n");
+    putl_code(S, fp, "#endif\n");
+    putl_code(S, fp, "#define YYRHSLOC(rhs, k) ((rhs)[k])\n");
 }
 #endif
 
 static void
-output_YYINT_typedef(FILE * fp)
+output_YYINT_typedef(byacc_t* S, FILE * fp)
 {
     /* generate the type used to index the various parser tables */
     if (CountLine(fp))
-	++outline;
+	++S->outline;
     fprintf(fp, "typedef %s YYINT;\n", CONCAT1("", YYINT));
 }
 
 static void
-output_rule_data(void)
+output_rule_data(byacc_t* S)
 {
     int i;
     int j;
 
-    output_YYINT_typedef(output_file);
+    output_YYINT_typedef(S, S->output_file);
 
-    start_int_table("lhs", symbol_value[start_symbol]);
+    start_int_table(S, "lhs", S->symbol_value[S->start_symbol]);
 
     j = 10;
-    for (i = 3; i < nrules; i++)
+    for (i = 3; i < S->nrules; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int(symbol_value[rlhs[i]]);
+	output_int(S, S->symbol_value[S->rlhs[i]]);
     }
-    end_table();
+    end_table(S);
 
-    start_int_table("len", 2);
+    start_int_table(S, "len", 2);
 
     j = 10;
-    for (i = 3; i < nrules; i++)
+    for (i = 3; i < S->nrules; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    j++;
 
-	output_int(rrhs[i + 1] - rrhs[i] - 1);
+	output_int(S, S->rrhs[i + 1] - S->rrhs[i] - 1);
     }
-    end_table();
+    end_table(S);
 }
 
 static void
-output_yydefred(void)
+output_yydefred(byacc_t* S)
 {
     int i, j;
 
-    start_int_table("defred", (defred[0] ? defred[0] - RULE_NUM_OFFSET : 0));
+    start_int_table(S, "defred", (S->defred[0] ? S->defred[0] - RULE_NUM_OFFSET : 0));
 
     j = 10;
-    for (i = 1; i < nstates; i++)
+    for (i = 1; i < S->nstates; i++)
     {
 	if (j < 10)
 	    ++j;
 	else
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 
-	output_int((defred[i] ? defred[i] - RULE_NUM_OFFSET : 0));
+	output_int(S, (S->defred[i] ? S->defred[i] - RULE_NUM_OFFSET : 0));
     }
 
-    end_table();
+    end_table(S);
 }
 
 #if defined(YYBTYACC)
 static void
-output_accessing_symbols(void)
+output_accessing_symbols(byacc_t* S)
 {
-    if (nstates != 0)
+    if (S->nstates != 0)
     {
 	int i, j;
 	int *translate;
 
-	translate = TMALLOC(int, nstates);
+	translate = TCMALLOC(int, S->nstates);
 	NO_SPACE(translate);
 
-	for (i = 0; i < nstates; ++i)
+	for (i = 0; i < S->nstates; ++i)
 	{
-	    int gsymb = accessing_symbol[i];
+	    int gsymb = S->accessing_symbol[i];
 
-	    translate[i] = symbol_pval[gsymb];
+	    translate[i] = S->symbol_pval[gsymb];
 	}
 
-	putl_code(output_file,
+	putl_code(S, S->output_file,
 		  "#if defined(YYDESTRUCT_CALL) || defined(YYSTYPE_TOSTRING)\n");
 	/* yystos[] may be unused, depending on compile-time defines */
-	start_int_table("stos", translate[0]);
+	start_int_table(S, "stos", translate[0]);
 
 	j = 10;
-	for (i = 1; i < nstates; ++i)
+	for (i = 1; i < S->nstates; ++i)
 	{
 	    if (j < 10)
 		++j;
 	    else
 	    {
-		output_newline();
+		output_newline(S);
 		j = 1;
 	    }
 
-	    output_int(translate[i]);
+	    output_int(S, translate[i]);
 	}
 
-	end_table();
+	end_table(S);
 	FREE(translate);
-	putl_code(output_file,
+	putl_code(S, S->output_file,
 		  "#endif /* YYDESTRUCT_CALL || YYSTYPE_TOSTRING */\n");
     }
 }
 
 static Value_t
-find_conflict_base(int cbase)
+find_conflict_base(byacc_t* S, int cbase)
 {
     int i, j;
 
     for (i = 0; i < cbase; i++)
     {
-	for (j = 0; j + cbase < nconflicts; j++)
+	for (j = 0; j + cbase < S->nconflicts; j++)
 	{
-	    if (conflicts[i + j] != conflicts[cbase + j])
+	    if (S->conflicts[i + j] != S->conflicts[cbase + j])
 		break;
 	}
-	if (j + cbase >= nconflicts)
+	if (j + cbase >= S->nconflicts)
 	    break;
     }
     return (Value_t)i;
@@ -433,7 +413,7 @@ find_conflict_base(int cbase)
 #endif
 
 static void
-token_actions(void)
+token_actions(byacc_t* S)
 {
     int i, j;
     Value_t shiftcount, reducecount;
@@ -446,44 +426,44 @@ token_actions(void)
     Value_t *actionrow, *r, *s;
     action *p;
 
-    actionrow = NEW2(PER_STATE * ntokens, Value_t);
-    for (i = 0; i < nstates; ++i)
+    actionrow = NEW2(PER_STATE * S->ntokens, Value_t);
+    for (i = 0; i < S->nstates; ++i)
     {
-	if (parser[i])
+	if (S->parser[i])
 	{
-	    for (j = 0; j < PER_STATE * ntokens; ++j)
+	    for (j = 0; j < PER_STATE * S->ntokens; ++j)
 		actionrow[j] = 0;
 
 	    shiftcount = 0;
 	    reducecount = 0;
 #if defined(YYBTYACC)
-	    if (backtrack)
+	    if (S->backtrack)
 	    {
 		conflictcount = 0;
 		csym = -1;
-		cbase = nconflicts;
+		cbase = S->nconflicts;
 	    }
 #endif
-	    for (p = parser[i]; p; p = p->next)
+	    for (p = S->parser[i]; p; p = p->next)
 	    {
 #if defined(YYBTYACC)
-		if (backtrack)
+		if (S->backtrack)
 		{
 		    if (csym != -1 && csym != p->symbol)
 		    {
 			conflictcount++;
-			conflicts[nconflicts++] = -1;
-			j = find_conflict_base(cbase);
-			actionrow[csym + 2 * ntokens] = (Value_t)(j + 1);
+			S->conflicts[S->nconflicts++] = -1;
+			j = find_conflict_base(S, cbase);
+			actionrow[csym + 2 * S->ntokens] = (Value_t)(j + 1);
 			if (j == cbase)
 			{
-			    cbase = nconflicts;
+			    cbase = S->nconflicts;
 			}
 			else
 			{
-			    if (conflicts[cbase] == -1)
+			    if (S->conflicts[cbase] == -1)
 				cbase++;
-			    nconflicts = cbase;
+			    S->nconflicts = cbase;
 			}
 			csym = -1;
 		    }
@@ -496,126 +476,126 @@ token_actions(void)
 			++shiftcount;
 			actionrow[p->symbol] = p->number;
 		    }
-		    else if (p->action_code == REDUCE && p->number != defred[i])
+		    else if (p->action_code == REDUCE && p->number != S->defred[i])
 		    {
 			++reducecount;
-			actionrow[p->symbol + ntokens] = p->number;
+			actionrow[p->symbol + S->ntokens] = p->number;
 		    }
 		}
 #if defined(YYBTYACC)
-		else if (backtrack && p->suppressed == 1)
+		else if (S->backtrack && p->suppressed == 1)
 		{
 		    csym = p->symbol;
 		    if (p->action_code == SHIFT)
 		    {
-			conflicts[nconflicts++] = p->number;
+			S->conflicts[S->nconflicts++] = p->number;
 		    }
-		    else if (p->action_code == REDUCE && p->number != defred[i])
+		    else if (p->action_code == REDUCE && p->number != S->defred[i])
 		    {
-			if (cbase == nconflicts)
+			if (cbase == S->nconflicts)
 			{
 			    if (cbase)
 				cbase--;
 			    else
-				conflicts[nconflicts++] = -1;
+				S->conflicts[S->nconflicts++] = -1;
 			}
-			conflicts[nconflicts++] = (Value_t)(p->number - RULE_NUM_OFFSET);
+			S->conflicts[S->nconflicts++] = (Value_t)(p->number - RULE_NUM_OFFSET);
 		    }
 		}
 #endif
 	    }
 #if defined(YYBTYACC)
-	    if (backtrack && csym != -1)
+	    if (S->backtrack && csym != -1)
 	    {
 		conflictcount++;
-		conflicts[nconflicts++] = -1;
-		j = find_conflict_base(cbase);
-		actionrow[csym + 2 * ntokens] = (Value_t)(j + 1);
+		S->conflicts[S->nconflicts++] = -1;
+		j = find_conflict_base(S, cbase);
+		actionrow[csym + 2 * S->ntokens] = (Value_t)(j + 1);
 		if (j == cbase)
 		{
-		    cbase = nconflicts;
+		    cbase = S->nconflicts;
 		}
 		else
 		{
-		    if (conflicts[cbase] == -1)
+		    if (S->conflicts[cbase] == -1)
 			cbase++;
-		    nconflicts = cbase;
+		    S->nconflicts = cbase;
 		}
 	    }
 #endif
 
-	    tally[i] = shiftcount;
-	    tally[nstates + i] = reducecount;
+	    S->tally[i] = shiftcount;
+	    S->tally[S->nstates + i] = reducecount;
 #if defined(YYBTYACC)
-	    if (backtrack)
-		tally[2 * nstates + i] = conflictcount;
+	    if (S->backtrack)
+		S->tally[2 * S->nstates + i] = conflictcount;
 #endif
-	    width[i] = 0;
-	    width[nstates + i] = 0;
+	    S->width[i] = 0;
+	    S->width[S->nstates + i] = 0;
 #if defined(YYBTYACC)
-	    if (backtrack)
-		width[2 * nstates + i] = 0;
+	    if (S->backtrack)
+		S->width[2 * S->nstates + i] = 0;
 #endif
 	    if (shiftcount > 0)
 	    {
-		froms[i] = r = NEW2(shiftcount, Value_t);
-		tos[i] = s = NEW2(shiftcount, Value_t);
+		S->froms[i] = r = NEW2(shiftcount, Value_t);
+		S->tos[i] = s = NEW2(shiftcount, Value_t);
 		min = MAXYYINT;
 		max = 0;
-		for (j = 0; j < ntokens; ++j)
+		for (j = 0; j < S->ntokens; ++j)
 		{
 		    if (actionrow[j])
 		    {
-			if (min > symbol_value[j])
-			    min = symbol_value[j];
-			if (max < symbol_value[j])
-			    max = symbol_value[j];
-			*r++ = symbol_value[j];
+			if (min > S->symbol_value[j])
+			    min = S->symbol_value[j];
+			if (max < S->symbol_value[j])
+			    max = S->symbol_value[j];
+			*r++ = S->symbol_value[j];
 			*s++ = actionrow[j];
 		    }
 		}
-		width[i] = (Value_t)(max - min + 1);
+		S->width[i] = (Value_t)(max - min + 1);
 	    }
 	    if (reducecount > 0)
 	    {
-		froms[nstates + i] = r = NEW2(reducecount, Value_t);
-		tos[nstates + i] = s = NEW2(reducecount, Value_t);
+		S->froms[S->nstates + i] = r = NEW2(reducecount, Value_t);
+		S->tos[S->nstates + i] = s = NEW2(reducecount, Value_t);
 		min = MAXYYINT;
 		max = 0;
-		for (j = 0; j < ntokens; ++j)
+		for (j = 0; j < S->ntokens; ++j)
 		{
-		    if (actionrow[ntokens + j])
+		    if (actionrow[S->ntokens + j])
 		    {
-			if (min > symbol_value[j])
-			    min = symbol_value[j];
-			if (max < symbol_value[j])
-			    max = symbol_value[j];
-			*r++ = symbol_value[j];
-			*s++ = (Value_t)(actionrow[ntokens + j] - RULE_NUM_OFFSET);
+			if (min > S->symbol_value[j])
+			    min = S->symbol_value[j];
+			if (max < S->symbol_value[j])
+			    max = S->symbol_value[j];
+			*r++ = S->symbol_value[j];
+			*s++ = (Value_t)(actionrow[S->ntokens + j] - RULE_NUM_OFFSET);
 		    }
 		}
-		width[nstates + i] = (Value_t)(max - min + 1);
+		S->width[S->nstates + i] = (Value_t)(max - min + 1);
 	    }
 #if defined(YYBTYACC)
-	    if (backtrack && conflictcount > 0)
+	    if (S->backtrack && conflictcount > 0)
 	    {
-		froms[2 * nstates + i] = r = NEW2(conflictcount, Value_t);
-		tos[2 * nstates + i] = s = NEW2(conflictcount, Value_t);
+		S->froms[2 * S->nstates + i] = r = NEW2(conflictcount, Value_t);
+		S->tos[2 * S->nstates + i] = s = NEW2(conflictcount, Value_t);
 		min = MAXYYINT;
 		max = 0;
-		for (j = 0; j < ntokens; ++j)
+		for (j = 0; j < S->ntokens; ++j)
 		{
-		    if (actionrow[2 * ntokens + j])
+		    if (actionrow[2 * S->ntokens + j])
 		    {
-			if (min > symbol_value[j])
-			    min = symbol_value[j];
-			if (max < symbol_value[j])
-			    max = symbol_value[j];
-			*r++ = symbol_value[j];
-			*s++ = (Value_t)(actionrow[2 * ntokens + j] - 1);
+			if (min > S->symbol_value[j])
+			    min = S->symbol_value[j];
+			if (max < S->symbol_value[j])
+			    max = S->symbol_value[j];
+			*r++ = S->symbol_value[j];
+			*s++ = (Value_t)(actionrow[2 * S->ntokens + j] - 1);
 		    }
 		}
-		width[2 * nstates + i] = (Value_t)(max - min + 1);
+		S->width[2 * S->nstates + i] = (Value_t)(max - min + 1);
 	    }
 #endif
 	}
@@ -624,7 +604,7 @@ token_actions(void)
 }
 
 static int
-default_goto(int symbol)
+default_goto(byacc_t* S, int symbol)
 {
     int i;
     int m;
@@ -632,25 +612,25 @@ default_goto(int symbol)
     int default_state;
     int max;
 
-    m = goto_map[symbol];
-    n = goto_map[symbol + 1];
+    m = S->goto_map[symbol];
+    n = S->goto_map[symbol + 1];
 
     if (m == n)
 	return (0);
 
-    for (i = 0; i < nstates; i++)
-	state_count[i] = 0;
+    for (i = 0; i < S->nstates; i++)
+	S->state_count[i] = 0;
 
     for (i = m; i < n; i++)
-	state_count[to_state[i]]++;
+	S->state_count[S->to_state[i]]++;
 
     max = 0;
     default_state = 0;
-    for (i = 0; i < nstates; i++)
+    for (i = 0; i < S->nstates; i++)
     {
-	if (state_count[i] > max)
+	if (S->state_count[i] > max)
 	{
-	    max = state_count[i];
+	    max = S->state_count[i];
 	    default_state = i;
 	}
     }
@@ -659,7 +639,7 @@ default_goto(int symbol)
 }
 
 static void
-save_column(int symbol, int default_state)
+save_column(byacc_t* S, int symbol, int default_state)
 {
     int i;
     int m;
@@ -670,69 +650,69 @@ save_column(int symbol, int default_state)
     Value_t count;
     int symno;
 
-    m = goto_map[symbol];
-    n = goto_map[symbol + 1];
+    m = S->goto_map[symbol];
+    n = S->goto_map[symbol + 1];
 
     count = 0;
     for (i = m; i < n; i++)
     {
-	if (to_state[i] != default_state)
+	if (S->to_state[i] != default_state)
 	    ++count;
     }
     if (count == 0)
 	return;
 
-    symno = symbol_value[symbol] + PER_STATE * nstates;
+    symno = S->symbol_value[symbol] + PER_STATE * S->nstates;
 
-    froms[symno] = sp1 = sp = NEW2(count, Value_t);
-    tos[symno] = sp2 = NEW2(count, Value_t);
+    S->froms[symno] = sp1 = sp = NEW2(count, Value_t);
+    S->tos[symno] = sp2 = NEW2(count, Value_t);
 
     for (i = m; i < n; i++)
     {
-	if (to_state[i] != default_state)
+	if (S->to_state[i] != default_state)
 	{
-	    *sp1++ = from_state[i];
-	    *sp2++ = to_state[i];
+	    *sp1++ = S->from_state[i];
+	    *sp2++ = S->to_state[i];
 	}
     }
 
-    tally[symno] = count;
-    width[symno] = (Value_t)(sp1[-1] - sp[0] + 1);
+    S->tally[symno] = count;
+    S->width[symno] = (Value_t)(sp1[-1] - sp[0] + 1);
 }
 
 static void
-goto_actions(void)
+goto_actions(byacc_t* S)
 {
     int i, j, k;
 
-    state_count = NEW2(nstates, Value_t);
+    S->state_count = NEW2(S->nstates, Value_t);
 
-    k = default_goto(start_symbol + 1);
-    start_int_table("dgoto", k);
-    save_column(start_symbol + 1, k);
+    k = default_goto(S, S->start_symbol + 1);
+    start_int_table(S, "dgoto", k);
+    save_column(S, S->start_symbol + 1, k);
 
     j = 10;
-    for (i = start_symbol + 2; i < nsyms; i++)
+    for (i = S->start_symbol + 2; i < S->nsyms; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	k = default_goto(i);
-	output_int(k);
-	save_column(i, k);
+	k = default_goto(S, i);
+	output_int(S, k);
+	save_column(S, i, k);
     }
 
-    end_table();
-    FREE(state_count);
+    end_table(S);
+    FREE(S->state_count);
 }
 
 static void
-sort_actions(void)
+sort_actions(byacc_t* S)
 {
     Value_t i;
     int j;
@@ -740,28 +720,28 @@ sort_actions(void)
     int t;
     int w;
 
-    order = NEW2(nvectors, Value_t);
-    nentries = 0;
+    S->order = NEW2(S->nvectors, Value_t);
+    S->nentries = 0;
 
-    for (i = 0; i < nvectors; i++)
+    for (i = 0; i < S->nvectors; i++)
     {
-	if (tally[i] > 0)
+	if (S->tally[i] > 0)
 	{
-	    t = tally[i];
-	    w = width[i];
-	    j = nentries - 1;
+	    t = S->tally[i];
+	    w = S->width[i];
+	    j = S->nentries - 1;
 
-	    while (j >= 0 && (width[order[j]] < w))
+	    while (j >= 0 && (S->width[S->order[j]] < w))
 		j--;
 
-	    while (j >= 0 && (width[order[j]] == w) && (tally[order[j]] < t))
+	    while (j >= 0 && (S->width[S->order[j]] == w) && (S->tally[S->order[j]] < t))
 		j--;
 
-	    for (k = nentries - 1; k > j; k--)
-		order[k + 1] = order[k];
+	    for (k = S->nentries - 1; k > j; k--)
+		S->order[k + 1] = S->order[k];
 
-	    order[j + 1] = i;
-	    nentries++;
+	    S->order[j + 1] = i;
+	    S->nentries++;
 	}
     }
 }
@@ -788,7 +768,7 @@ sort_actions(void)
 #endif
 
 static int
-matching_vector(int vector)
+matching_vector(byacc_t* S, int vector)
 {
     int i;
     int k;
@@ -796,18 +776,18 @@ matching_vector(int vector)
     int w;
     int prev;
 
-    i = order[vector];
-    if (i >= 2 * nstates)
+    i = S->order[vector];
+    if (i >= 2 * S->nstates)
 	return (-1);
 
-    t = tally[i];
-    w = width[i];
+    t = S->tally[i];
+    w = S->width[i];
 
     for (prev = vector - 1; prev >= 0; prev--)
     {
-	int j = order[prev];
+	int j = S->order[prev];
 
-	if (width[j] != w || tally[j] != t)
+	if (S->width[j] != w || S->tally[j] != t)
 	{
 	    return (-1);
 	}
@@ -817,7 +797,7 @@ matching_vector(int vector)
 
 	    for (k = 0; match && k < t; k++)
 	    {
-		if (tos[j][k] != tos[i][k] || froms[j][k] != froms[i][k])
+		if (S->tos[j][k] != S->tos[i][k] || S->froms[j][k] != S->froms[i][k])
 		    match = 0;
 	    }
 
@@ -830,7 +810,7 @@ matching_vector(int vector)
 }
 
 static int
-pack_vector(int vector)
+pack_vector(byacc_t* S, int vector)
 {
     int i, j, k, l;
     int t;
@@ -840,17 +820,17 @@ pack_vector(int vector)
     Value_t *to;
     int newmax;
 
-    i = order[vector];
-    t = tally[i];
+    i = S->order[vector];
+    t = S->tally[i];
     assert(t);
 
-    from = froms[i];
-    to = tos[i];
+    from = S->froms[i];
+    to = S->tos[i];
 
-    j = lowzero - from[0];
+    j = S->lowzero - from[0];
     for (k = 1; k < t; ++k)
-	if (lowzero - from[k] > j)
-	    j = lowzero - from[k];
+	if (S->lowzero - from[k] > j)
+	    j = S->lowzero - from[k];
     for (;; ++j)
     {
 	if (j == 0)
@@ -859,38 +839,38 @@ pack_vector(int vector)
 	for (k = 0; ok && k < t; k++)
 	{
 	    loc = (Value_t)(j + from[k]);
-	    if (loc >= maxtable - 1)
+	    if (loc >= S->maxtable - 1)
 	    {
 		if (loc >= MAXTABLE - 1)
-		    fatal("maximum table size exceeded");
+		    fatal(S, "maximum table size exceeded");
 
-		newmax = maxtable;
+		newmax = S->maxtable;
 		do
 		{
 		    newmax += 200;
 		}
 		while (newmax <= loc);
 
-		table = TREALLOC(Value_t, table, newmax);
-		NO_SPACE(table);
+		S->table = TREALLOC(Value_t, S->table, newmax);
+		NO_SPACE(S->table);
 
-		check = TREALLOC(Value_t, check, newmax);
-		NO_SPACE(check);
+		S->check = TREALLOC(Value_t, S->check, newmax);
+		NO_SPACE(S->check);
 
-		for (l = maxtable; l < newmax; ++l)
+		for (l = S->maxtable; l < newmax; ++l)
 		{
-		    table[l] = 0;
-		    check[l] = -1;
+		    S->table[l] = 0;
+		    S->check[l] = -1;
 		}
-		maxtable = newmax;
+		S->maxtable = newmax;
 	    }
 
-	    if (check[loc] != -1)
+	    if (S->check[loc] != -1)
 		ok = 0;
 	}
 	for (k = 0; ok && k < vector; k++)
 	{
-	    if (pos[k] == j)
+	    if (S->pos[k] == j)
 		ok = 0;
 	}
 	if (ok)
@@ -898,14 +878,14 @@ pack_vector(int vector)
 	    for (k = 0; k < t; k++)
 	    {
 		loc = (Value_t)(j + from[k]);
-		table[loc] = to[k];
-		check[loc] = from[k];
-		if (loc > high)
-		    high = loc;
+		S->table[loc] = to[k];
+		S->check[loc] = from[k];
+		if (loc > S->high)
+		    S->high = loc;
 	    }
 
-	    while (check[lowzero] != -1)
-		++lowzero;
+	    while (S->check[S->lowzero] != -1)
+		++S->lowzero;
 
 	    return (j);
 	}
@@ -913,265 +893,265 @@ pack_vector(int vector)
 }
 
 static void
-pack_table(void)
+pack_table(byacc_t* S)
 {
     int i;
     Value_t place;
 
-    base = NEW2(nvectors, Value_t);
-    pos = NEW2(nentries, Value_t);
+    S->base = NEW2(S->nvectors, Value_t);
+    S->pos = NEW2(S->nentries, Value_t);
 
-    maxtable = 1000;
-    table = NEW2(maxtable, Value_t);
-    check = NEW2(maxtable, Value_t);
+    S->maxtable = 1000;
+    S->table = NEW2(S->maxtable, Value_t);
+    S->check = NEW2(S->maxtable, Value_t);
 
-    lowzero = 0;
-    high = 0;
+    S->lowzero = 0;
+    S->high = 0;
 
-    for (i = 0; i < maxtable; i++)
-	check[i] = -1;
+    for (i = 0; i < S->maxtable; i++)
+	S->check[i] = -1;
 
-    for (i = 0; i < nentries; i++)
+    for (i = 0; i < S->nentries; i++)
     {
-	int state = matching_vector(i);
+	int state = matching_vector(S, i);
 
 	if (state < 0)
-	    place = (Value_t)pack_vector(i);
+	    place = (Value_t)pack_vector(S, i);
 	else
-	    place = base[state];
+	    place = S->base[state];
 
-	pos[i] = place;
-	base[order[i]] = place;
+	S->pos[i] = place;
+	S->base[S->order[i]] = place;
     }
 
-    for (i = 0; i < nvectors; i++)
+    for (i = 0; i < S->nvectors; i++)
     {
-	if (froms[i])
-	    FREE(froms[i]);
-	if (tos[i])
-	    FREE(tos[i]);
+	if (S->froms[i])
+	    FREE(S->froms[i]);
+	if (S->tos[i])
+	    FREE(S->tos[i]);
     }
 
-    DO_FREE(froms);
-    DO_FREE(tos);
-    DO_FREE(tally);
-    DO_FREE(width);
-    DO_FREE(pos);
+    DO_FREE(S->froms);
+    DO_FREE(S->tos);
+    DO_FREE(S->tally);
+    DO_FREE(S->width);
+    DO_FREE(S->pos);
 }
 
 static void
-output_base(void)
+output_base(byacc_t* S)
 {
     int i, j;
 
-    start_int_table("sindex", base[0]);
+    start_int_table(S, "sindex", S->base[0]);
 
     j = 10;
-    for (i = 1; i < nstates; i++)
+    for (i = 1; i < S->nstates; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int(base[i]);
+	output_int(S, S->base[i]);
     }
 
-    end_table();
+    end_table(S);
 
-    start_int_table("rindex", base[nstates]);
+    start_int_table(S, "rindex", S->base[S->nstates]);
 
     j = 10;
-    for (i = nstates + 1; i < 2 * nstates; i++)
+    for (i = S->nstates + 1; i < 2 * S->nstates; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int(base[i]);
+	output_int(S, S->base[i]);
     }
 
-    end_table();
+    end_table(S);
 
 #if defined(YYBTYACC)
-    output_line("#if YYBTYACC");
-    start_int_table("cindex", base[2 * nstates]);
+    output_line(S, "#if YYBTYACC");
+    start_int_table(S, "cindex", S->base[2 * S->nstates]);
 
     j = 10;
-    for (i = 2 * nstates + 1; i < 3 * nstates; i++)
+    for (i = 2 * S->nstates + 1; i < 3 * S->nstates; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int(base[i]);
+	output_int(S, S->base[i]);
     }
 
-    end_table();
-    output_line("#endif");
+    end_table(S);
+    output_line(S, "#endif");
 #endif
 
-    start_int_table("gindex", base[PER_STATE * nstates]);
+    start_int_table(S, "gindex", S->base[PER_STATE * S->nstates]);
 
     j = 10;
-    for (i = PER_STATE * nstates + 1; i < nvectors - 1; i++)
+    for (i = PER_STATE * S->nstates + 1; i < S->nvectors - 1; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int(base[i]);
+	output_int(S, S->base[i]);
     }
 
-    end_table();
-    FREE(base);
+    end_table(S);
+    FREE(S->base);
 }
 
 static void
-output_table(void)
+output_table(byacc_t* S)
 {
     int i;
     int j;
 
-    if (high >= MAXYYINT)
+    if (S->high >= MAXYYINT)
     {
-	fprintf(stderr, "YYTABLESIZE: %ld\n", high);
+	fprintf(stderr, "YYTABLESIZE: %ld\n", S->high);
 	fprintf(stderr, "Table is longer than %ld elements.\n", (long)MAXYYINT);
-	done(1);
+	done(S, 1);
     }
 
-    ++outline;
-    fprintf(code_file, "#define YYTABLESIZE %ld\n", high);
-    start_int_table("table", table[0]);
+    ++S->outline;
+    fprintf(S->code_file, "#define YYTABLESIZE %ld\n", S->high);
+    start_int_table(S, "table", S->table[0]);
 
     j = 10;
-    for (i = 1; i <= high; i++)
+    for (i = 1; i <= S->high; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int(table[i]);
+	output_int(S, S->table[i]);
     }
 
-    end_table();
-    FREE(table);
+    end_table(S);
+    FREE(S->table);
 }
 
 static void
-output_check(void)
+output_check(byacc_t* S)
 {
     int i;
     int j;
 
-    start_int_table("check", check[0]);
+    start_int_table(S, "check", S->check[0]);
 
     j = 10;
-    for (i = 1; i <= high; i++)
+    for (i = 1; i <= S->high; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int(check[i]);
+	output_int(S, S->check[i]);
     }
 
-    end_table();
-    FREE(check);
+    end_table(S);
+    FREE(S->check);
 }
 
 #if defined(YYBTYACC)
 static void
-output_ctable(void)
+output_ctable(byacc_t* S)
 {
     int i;
     int j;
-    int limit = (conflicts != 0) ? nconflicts : 0;
+    int limit = (S->conflicts != 0) ? S->nconflicts : 0;
 
-    if (limit < high)
-	limit = (int)high;
+    if (limit < S->high)
+	limit = (int)S->high;
 
-    output_line("#if YYBTYACC");
-    start_int_table("ctable", conflicts ? conflicts[0] : -1);
+    output_line(S, "#if YYBTYACC");
+    start_int_table(S, "ctable", S->conflicts ? S->conflicts[0] : -1);
 
     j = 10;
     for (i = 1; i < limit; i++)
     {
 	if (j >= 10)
 	{
-	    output_newline();
+	    output_newline(S);
 	    j = 1;
 	}
 	else
 	    ++j;
 
-	output_int((conflicts != 0 && i < nconflicts) ? conflicts[i] : -1);
+	output_int(S, (S->conflicts != 0 && i < S->nconflicts) ? S->conflicts[i] : -1);
     }
 
-    if (conflicts)
-	FREE(conflicts);
+    if (S->conflicts)
+	FREE(S->conflicts);
 
-    end_table();
-    output_line("#endif");
+    end_table(S);
+    output_line(S, "#endif");
 }
 #endif
 
 static void
-output_actions(void)
+output_actions(byacc_t* S)
 {
-    nvectors = PER_STATE * nstates + nvars;
+    S->nvectors = PER_STATE * S->nstates + S->nvars;
 
-    froms = NEW2(nvectors, Value_t *);
-    tos = NEW2(nvectors, Value_t *);
-    tally = NEW2(nvectors, Value_t);
-    width = NEW2(nvectors, Value_t);
+    S->froms = NEW2(S->nvectors, Value_t *);
+    S->tos = NEW2(S->nvectors, Value_t *);
+    S->tally = NEW2(S->nvectors, Value_t);
+    S->width = NEW2(S->nvectors, Value_t);
 
 #if defined(YYBTYACC)
-    if (backtrack && (SRtotal + RRtotal) != 0)
-	conflicts = NEW2(4 * (SRtotal + RRtotal), Value_t);
+    if (S->backtrack && (S->SRtotal + S->RRtotal) != 0)
+	S->conflicts = NEW2(4 * (S->SRtotal + S->RRtotal), Value_t);
 #endif
 
-    token_actions();
-    FREE(lookaheads);
-    FREE(LA);
-    FREE(LAruleno);
-    FREE(accessing_symbol);
+    token_actions(S);
+    FREE(S->lookaheads);
+    FREE(S->LA);
+    FREE(S->LAruleno);
+    FREE(S->accessing_symbol);
 
-    goto_actions();
-    FREE(goto_base);
-    FREE(from_state);
-    FREE(to_state);
+    goto_actions(S);
+    FREE(S->goto_base);
+    FREE(S->from_state);
+    FREE(S->to_state);
 
-    sort_actions();
-    pack_table();
-    output_base();
-    output_table();
-    output_check();
+    sort_actions(S);
+    pack_table(S);
+    output_base(S);
+    output_table(S);
+    output_check(S);
 #if defined(YYBTYACC)
-    output_ctable();
+    output_ctable(S);
 #endif
 }
 
@@ -1208,37 +1188,37 @@ is_C_identifier(char *name)
 
 #if USE_HEADER_GUARDS
 static void
-start_defines_file(void)
+start_defines_file(byacc_t* S)
 {
-    fprintf(defines_file, "#ifndef _%s_defines_h_\n", symbol_prefix);
-    fprintf(defines_file, "#define _%s_defines_h_\n\n", symbol_prefix);
+    fprintf(S->defines_file, "#ifndef _%s_defines_h_\n", S->symbol_prefix);
+    fprintf(S->defines_file, "#define _%s_defines_h_\n\n", S->symbol_prefix);
 }
 
 static void
-end_defines_file(void)
+end_defines_file(byacc_t* S)
 {
-    fprintf(defines_file, "\n#endif /* _%s_defines_h_ */\n", symbol_prefix);
+    fprintf(S->defines_file, "\n#endif /* _%s_defines_h_ */\n", S->symbol_prefix);
 }
 #else
-#define start_defines_file()	/* nothing */
-#define end_defines_file()	/* nothing */
+#define start_defines_file(S)	/* nothing */
+#define end_defines_file(S)	/* nothing */
 #endif
 
 static void
-output_defines(FILE * fp)
+output_defines(byacc_t* S, FILE * fp)
 {
     int c, i;
 
-    if (fp == defines_file)
+    if (fp == S->defines_file)
     {
-	output_code_lines(fp, CODE_REQUIRES);
+	output_code_lines(S, fp, CODE_REQUIRES);
     }
 
-    for (i = 2; i < ntokens; ++i)
+    for (i = 2; i < S->ntokens; ++i)
     {
-	char *s = symbol_name[i];
+	char *s = S->symbol_name[i];
 
-	if (is_C_identifier(s) && (!sflag || *s != '"'))
+	if (is_C_identifier(s) && (!S->sflag || *s != '"'))
 	{
 	    fprintf(fp, "#define ");
 	    c = *s;
@@ -1257,125 +1237,125 @@ output_defines(FILE * fp)
 		}
 		while ((c = *++s) != 0);
 	    }
-	    if (fp == code_file)
-		++outline;
-	    fprintf(fp, " %ld\n", (long)symbol_value[i]);
+	    if (fp == S->code_file)
+		++S->outline;
+	    fprintf(fp, " %ld\n", (long)S->symbol_value[i]);
 	}
     }
 
-    if (fp == code_file)
-	++outline;
-    if (fp != defines_file || iflag)
-	fprintf(fp, "#define YYERRCODE %ld\n", (long)symbol_value[1]);
+    if (fp == S->code_file)
+	++S->outline;
+    if (fp != S->defines_file || S->iflag)
+	fprintf(fp, "#define YYERRCODE %ld\n", (long)S->symbol_value[1]);
 
-    if (fp == defines_file)
+    if (fp == S->defines_file)
     {
-	output_code_lines(fp, CODE_PROVIDES);
+	output_code_lines(S, fp, CODE_PROVIDES);
     }
 
-    if (token_table && rflag && fp != externs_file)
+    if (S->token_table && S->rflag && fp != S->externs_file)
     {
-	if (fp == code_file)
-	    ++outline;
+	if (fp == S->code_file)
+	    ++S->outline;
 	fputs("#undef yytname\n", fp);
-	if (fp == code_file)
-	    ++outline;
+	if (fp == S->code_file)
+	    ++S->outline;
 	fputs("#define yytname yyname\n", fp);
     }
 
-    if (fp == defines_file || (iflag && !dflag))
+    if (fp == S->defines_file || (S->iflag && !S->dflag))
     {
-	if (unionized)
+	if (S->unionized)
 	{
-	    if (union_file != 0)
+	    if (S->union_file != 0)
 	    {
-		rewind(union_file);
-		while ((c = getc(union_file)) != EOF)
-		    putc_code(fp, c);
+		rewind(S->union_file);
+		while ((c = getc(S->union_file)) != EOF)
+		    putc_code(S, fp, c);
 	    }
-	    if (!pure_parser)
-		fprintf(fp, "extern YYSTYPE %slval;\n", symbol_prefix);
+	    if (!S->pure_parser)
+		fprintf(fp, "extern YYSTYPE %slval;\n", S->symbol_prefix);
 	}
 #if defined(YYBTYACC)
-	if (locations)
+	if (S->locations)
 	{
-	    output_ltype(fp);
-	    fprintf(fp, "extern YYLTYPE %slloc;\n", symbol_prefix);
+	    output_ltype(S, fp);
+	    fprintf(fp, "extern YYLTYPE %slloc;\n", S->symbol_prefix);
 	}
 #endif
     }
 }
 
 static void
-output_stored_text(FILE * fp)
+output_stored_text(byacc_t* S, FILE * fp)
 {
     int c;
     FILE *in;
 
-    if (text_file == NULL)
-	open_error("text_file");
-    rewind(text_file);
-    in = text_file;
+    if (S->text_file == NULL)
+	open_error(S, "text_file");
+    rewind(S->text_file);
+    in = S->text_file;
     if ((c = getc(in)) == EOF)
 	return;
-    putc_code(fp, c);
+    putc_code(S, fp, c);
     while ((c = getc(in)) != EOF)
     {
-	putc_code(fp, c);
+	putc_code(S, fp, c);
     }
-    write_code_lineno(fp);
+    write_code_lineno(S, fp);
 }
 
 static int
-output_yydebug(FILE * fp)
+output_yydebug(byacc_t* S, FILE * fp)
 {
     fprintf(fp, "#ifndef YYDEBUG\n");
-    fprintf(fp, "#define YYDEBUG %d\n", tflag);
+    fprintf(fp, "#define YYDEBUG %d\n", S->tflag);
     fprintf(fp, "#endif\n");
     return 3;
 }
 
 static void
-output_debug(void)
+output_debug(byacc_t* S)
 {
     int i, j, k, max, maxtok;
     const char **symnam;
     const char *s;
 
-    ++outline;
-    fprintf(code_file, "#define YYFINAL %ld\n", (long)final_state);
+    ++S->outline;
+    fprintf(S->code_file, "#define YYFINAL %ld\n", (long)S->final_state);
 
-    outline += output_yydebug(code_file);
+    S->outline += output_yydebug(S, S->code_file);
 
-    if (rflag)
+    if (S->rflag)
     {
-	output_yydebug(output_file);
+	output_yydebug(S, S->output_file);
     }
 
     maxtok = 0;
-    for (i = 0; i < ntokens; ++i)
-	if (symbol_value[i] > maxtok)
-	    maxtok = symbol_value[i];
+    for (i = 0; i < S->ntokens; ++i)
+	if (S->symbol_value[i] > maxtok)
+	    maxtok = S->symbol_value[i];
 
     /* symbol_value[$accept] = -1         */
     /* symbol_value[<goal>]  = 0          */
     /* remaining non-terminals start at 1 */
     max = maxtok;
-    for (i = ntokens; i < nsyms; ++i)
-	if (((maxtok + 1) + (symbol_value[i] + 1)) > max)
-	    max = (maxtok + 1) + (symbol_value[i] + 1);
+    for (i = S->ntokens; i < S->nsyms; ++i)
+	if (((maxtok + 1) + (S->symbol_value[i] + 1)) > max)
+	    max = (maxtok + 1) + (S->symbol_value[i] + 1);
 
-    ++outline;
-    fprintf(code_file, "#define YYMAXTOKEN %d\n", maxtok);
+    ++S->outline;
+    fprintf(S->code_file, "#define YYMAXTOKEN %d\n", maxtok);
 
-    ++outline;
-    fprintf(code_file, "#define YYUNDFTOKEN %d\n", max + 1);
+    ++S->outline;
+    fprintf(S->code_file, "#define YYUNDFTOKEN %d\n", max + 1);
 
-    ++outline;
-    fprintf(code_file, "#define YYTRANSLATE(a) ((a) > YYMAXTOKEN ? "
+    ++S->outline;
+    fprintf(S->code_file, "#define YYTRANSLATE(a) ((a) > YYMAXTOKEN ? "
 	    "YYUNDFTOKEN : (a))\n");
 
-    symnam = TMALLOC(const char *, max + 2);
+    symnam = TCMALLOC(const char *, max + 2);
     NO_SPACE(symnam);
 
     /* Note that it is not necessary to initialize the element          */
@@ -1383,14 +1363,14 @@ output_debug(void)
 #if defined(YYBTYACC)
     for (i = 0; i < max; ++i)
 	symnam[i] = 0;
-    for (i = nsyms - 1; i >= 0; --i)
-	symnam[symbol_pval[i]] = symbol_name[i];
+    for (i = S->nsyms - 1; i >= 0; --i)
+	symnam[S->symbol_pval[i]] = S->symbol_name[i];
     symnam[max + 1] = "illegal-symbol";
 #else
     for (i = 0; i <= max; ++i)
 	symnam[i] = 0;
-    for (i = ntokens - 1; i >= 2; --i)
-	symnam[symbol_value[i]] = symbol_name[i];
+    for (i = S->ntokens - 1; i >= 2; --i)
+	symnam[S->symbol_value[i]] = S->symbol_name[i];
     symnam[0] = "end-of-file";
     symnam[max + 1] = "illegal-symbol";
 #endif
@@ -1402,20 +1382,20 @@ output_debug(void)
      * If the grammar declares "%token-table", define symbol "yytname" so
      * an application such as ntpd can build.
      */
-    if (token_table)
+    if (S->token_table)
     {
-	if (!rflag)
+	if (!S->rflag)
 	{
-	    output_line("#undef yytname");
-	    output_line("#define yytname yyname");
+	    output_line(S, "#undef yytname");
+	    output_line(S, "#define yytname yyname");
 	}
     }
     else
     {
-	output_line("#if YYDEBUG");
+	output_line(S, "#if YYDEBUG");
     }
 
-    start_str_table("name");
+    start_str_table(S, "name");
     j = 80;
     for (i = 0; i <= max + 1; ++i)
     {
@@ -1437,25 +1417,25 @@ output_debug(void)
 		j += k;
 		if (j > 80)
 		{
-		    output_newline();
+		    output_newline(S);
 		    j = k;
 		}
-		fprintf(output_file, "\"\\\"");
+		fprintf(S->output_file, "\"\\\"");
 		s = symnam[i];
 		while (*++s != '"')
 		{
 		    if (*s == '\\')
 		    {
-			fprintf(output_file, "\\\\");
+			fprintf(S->output_file, "\\\\");
 			if (*++s == '\\')
-			    fprintf(output_file, "\\\\");
+			    fprintf(S->output_file, "\\\\");
 			else
-			    putc(*s, output_file);
+			    putc(*s, S->output_file);
 		    }
 		    else
-			putc(*s, output_file);
+			putc(*s, S->output_file);
 		}
-		fprintf(output_file, "\\\"\",");
+		fprintf(S->output_file, "\\\"\",");
 	    }
 	    else if (s[0] == '\'')
 	    {
@@ -1464,10 +1444,10 @@ output_debug(void)
 		    j += 7;
 		    if (j > 80)
 		    {
-			output_newline();
+			output_newline(S);
 			j = 7;
 		    }
-		    fprintf(output_file, "\"'\\\"'\",");
+		    fprintf(S->output_file, "\"'\\\"'\",");
 		}
 		else
 		{
@@ -1485,25 +1465,25 @@ output_debug(void)
 		    j += k;
 		    if (j > 80)
 		    {
-			output_newline();
+			output_newline(S);
 			j = k;
 		    }
-		    fprintf(output_file, "\"'");
+		    fprintf(S->output_file, "\"'");
 		    s = symnam[i];
 		    while (*++s != '\'')
 		    {
 			if (*s == '\\')
 			{
-			    fprintf(output_file, "\\\\");
+			    fprintf(S->output_file, "\\\\");
 			    if (*++s == '\\')
-				fprintf(output_file, "\\\\");
+				fprintf(S->output_file, "\\\\");
 			    else
-				putc(*s, output_file);
+				putc(*s, S->output_file);
 			}
 			else
-			    putc(*s, output_file);
+			    putc(*s, S->output_file);
 		    }
-		    fprintf(output_file, "'\",");
+		    fprintf(S->output_file, "'\",");
 		}
 	    }
 	    else
@@ -1512,16 +1492,16 @@ output_debug(void)
 		j += k;
 		if (j > 80)
 		{
-		    output_newline();
+		    output_newline(S);
 		    j = k;
 		}
-		putc('"', output_file);
+		putc('"', S->output_file);
 		do
 		{
-		    putc(*s, output_file);
+		    putc(*s, S->output_file);
 		}
 		while (*++s);
-		fprintf(output_file, "\",");
+		fprintf(S->output_file, "\",");
 	    }
 	}
 	else
@@ -1529,195 +1509,188 @@ output_debug(void)
 	    j += 2;
 	    if (j > 80)
 	    {
-		output_newline();
+		output_newline(S);
 		j = 2;
 	    }
-	    fprintf(output_file, "0,");
+	    fprintf(S->output_file, "0,");
 	}
     }
-    end_table();
+    end_table(S);
     FREE(symnam);
 
-    if (token_table)
-	output_line("#if YYDEBUG");
-    start_str_table("rule");
-    for (i = 2; i < nrules; ++i)
+    if (S->token_table)
+	output_line(S, "#if YYDEBUG");
+    start_str_table(S, "rule");
+    for (i = 2; i < S->nrules; ++i)
     {
-	fprintf(output_file, "\"%s :", symbol_name[rlhs[i]]);
-	for (j = rrhs[i]; ritem[j] > 0; ++j)
+	fprintf(S->output_file, "\"%s :", S->symbol_name[S->rlhs[i]]);
+	for (j = S->rrhs[i]; S->ritem[j] > 0; ++j)
 	{
-	    s = symbol_name[ritem[j]];
+	    s = S->symbol_name[S->ritem[j]];
 	    if (s[0] == '"')
 	    {
-		fprintf(output_file, " \\\"");
+		fprintf(S->output_file, " \\\"");
 		while (*++s != '"')
 		{
 		    if (*s == '\\')
 		    {
 			if (s[1] == '\\')
-			    fprintf(output_file, "\\\\\\\\");
+			    fprintf(S->output_file, "\\\\\\\\");
 			else
-			    fprintf(output_file, "\\\\%c", s[1]);
+			    fprintf(S->output_file, "\\\\%c", s[1]);
 			++s;
 		    }
 		    else
-			putc(*s, output_file);
+			putc(*s, S->output_file);
 		}
-		fprintf(output_file, "\\\"");
+		fprintf(S->output_file, "\\\"");
 	    }
 	    else if (s[0] == '\'')
 	    {
 		if (s[1] == '"')
-		    fprintf(output_file, " '\\\"'");
+		    fprintf(S->output_file, " '\\\"'");
 		else if (s[1] == '\\')
 		{
 		    if (s[2] == '\\')
-			fprintf(output_file, " '\\\\\\\\");
+			fprintf(S->output_file, " '\\\\\\\\");
 		    else
-			fprintf(output_file, " '\\\\%c", s[2]);
+			fprintf(S->output_file, " '\\\\%c", s[2]);
 		    s += 2;
 		    while (*++s != '\'')
-			putc(*s, output_file);
-		    putc('\'', output_file);
+			putc(*s, S->output_file);
+		    putc('\'', S->output_file);
 		}
 		else
-		    fprintf(output_file, " '%c'", s[1]);
+		    fprintf(S->output_file, " '%c'", s[1]);
 	    }
 	    else
-		fprintf(output_file, " %s", s);
+		fprintf(S->output_file, " %s", s);
 	}
-	fprintf(output_file, "\",");
-	output_newline();
+	fprintf(S->output_file, "\",");
+	output_newline(S);
     }
 
-    end_table();
-    output_line("#endif");
+    end_table(S);
+    output_line(S, "#endif");
 }
 
 #if defined(YYBTYACC)
 static void
-output_backtracking_parser(FILE * fp)
+output_backtracking_parser(byacc_t* S, FILE * fp)
 {
-    putl_code(fp, "#undef YYBTYACC\n");
+    putl_code(S, fp, "#undef YYBTYACC\n");
 #if defined(YYBTYACC)
-    if (backtrack)
+    if (S->backtrack)
     {
-	putl_code(fp, "#define YYBTYACC 1\n");
-	putl_code(fp,
+	putl_code(S, fp, "#define YYBTYACC 1\n");
+	putl_code(S, fp,
 		  "#define YYDEBUGSTR (yytrial ? YYPREFIX \"debug(trial)\" : YYPREFIX \"debug\")\n");
     }
     else
 #endif
     {
-	putl_code(fp, "#define YYBTYACC 0\n");
-	putl_code(fp, "#define YYDEBUGSTR YYPREFIX \"debug\"\n");
+	putl_code(S, fp, "#define YYBTYACC 0\n");
+	putl_code(S, fp, "#define YYDEBUGSTR YYPREFIX \"debug\"\n");
     }
 }
 #endif
 
 static void
-output_pure_parser(FILE * fp)
+output_pure_parser(byacc_t* S, FILE * fp)
 {
-    putc_code(fp, '\n');
+    putc_code(S, fp, '\n');
 
-    if (fp == code_file)
-	++outline;
-    fprintf(fp, "#define YYPURE %d\n", pure_parser);
-    putc_code(fp, '\n');
-}
-
+    if (fp == S->code_file)
+	++S->outline;
+    fprintf(fp, "#define YYPURE %d\n", S->pure_parser);
 #if defined(YY_NO_LEAKS)
-static void
-output_no_leaks(FILE * fp)
-{
-    putc_code(fp, '\n');
-
-    if (fp == code_file)
-	++outline;
+    if (fp == S->code_file)
+	++S->outline;
     fputs("#define YY_NO_LEAKS 1\n", fp);
-    putc_code(fp, '\n');
-}
+#else
+    putc_code(S, fp, '\n');
 #endif
+}
 
 static void
-output_trailing_text(void)
+output_trailing_text(byacc_t* S)
 {
     int c, last;
     FILE *in;
 
-    if (line == 0)
+    if (S->line == 0)
 	return;
 
-    in = input_file;
-    c = *cptr;
+    in = S->input_file;
+    c = *S->cptr;
     if (c == '\n')
     {
-	++lineno;
+	++S->lineno;
 	if ((c = getc(in)) == EOF)
 	    return;
-	write_input_lineno();
-	putc_code(code_file, c);
+	write_input_lineno(S);
+	putc_code(S, S->code_file, c);
 	last = c;
     }
     else
     {
-	write_input_lineno();
+	write_input_lineno(S);
 	do
 	{
-	    putc_code(code_file, c);
+	    putc_code(S, S->code_file, c);
 	}
-	while ((c = *++cptr) != '\n');
-	putc_code(code_file, c);
+	while ((c = *++S->cptr) != '\n');
+	putc_code(S, S->code_file, c);
 	last = '\n';
     }
 
     while ((c = getc(in)) != EOF)
     {
-	putc_code(code_file, c);
+	putc_code(S, S->code_file, c);
 	last = c;
     }
 
     if (last != '\n')
     {
-	putc_code(code_file, '\n');
+	putc_code(S, S->code_file, '\n');
     }
-    write_code_lineno(code_file);
+    write_code_lineno(S, S->code_file);
 }
 
 static void
-output_semantic_actions(void)
+output_semantic_actions(byacc_t* S)
 {
     int c, last;
     int state;
     char line_state[20];
 
-    rewind(action_file);
-    if ((c = getc(action_file)) == EOF)
+    rewind(S->action_file);
+    if ((c = getc(S->action_file)) == EOF)
 	return;
 
-    if (!lflag)
+    if (!S->lflag)
     {
 	state = -1;
-	sprintf(line_state, line_format, 1, "");
+	sprintf(line_state, S->line_format, 1, "");
     }
 
     last = c;
-    putc_code(code_file, c);
-    while ((c = getc(action_file)) != EOF)
+    putc_code(S, S->code_file, c);
+    while ((c = getc(S->action_file)) != EOF)
     {
 	/*
 	 * When writing the action file, we did not know the line-numbers in
 	 * the code-file, but wrote empty #line directives.  Detect those and
 	 * replace with proper #line directives.
 	 */
-	if (!lflag && (last == '\n' || state >= 0))
+	if (!S->lflag && (last == '\n' || state >= 0))
 	{
 	    if (c == line_state[state + 1])
 	    {
 		++state;
 		if (line_state[state + 1] == '\0')
 		{
-		    write_code_lineno(code_file);
+		    write_code_lineno(S, S->code_file);
 		    state = -1;
 		}
 		last = c;
@@ -1727,293 +1700,293 @@ output_semantic_actions(void)
 	    {
 		int n;
 		for (n = 0; n <= state; ++n)
-		    putc_code(code_file, line_state[n]);
+		    putc_code(S, S->code_file, line_state[n]);
 		state = -1;
 	    }
 	}
-	putc_code(code_file, c);
+	putc_code(S, S->code_file, c);
 	last = c;
     }
 
     if (last != '\n')
     {
-	putc_code(code_file, '\n');
+	putc_code(S, S->code_file, '\n');
     }
 
-    write_code_lineno(code_file);
+    write_code_lineno(S, S->code_file);
 }
 
 static void
-output_parse_decl(FILE * fp)
+output_parse_decl(byacc_t* S, FILE * fp)
 {
-    putc_code(fp, '\n');
-    putl_code(fp, "/* compatibility with bison */\n");
-    putl_code(fp, "#ifdef YYPARSE_PARAM\n");
-    putl_code(fp, "/* compatibility with FreeBSD */\n");
-    putl_code(fp, "# ifdef YYPARSE_PARAM_TYPE\n");
-    putl_code(fp,
+    putc_code(S, fp, '\n');
+    putl_code(S, fp, "/* compatibility with bison */\n");
+    putl_code(S, fp, "#ifdef YYPARSE_PARAM\n");
+    putl_code(S, fp, "/* compatibility with FreeBSD */\n");
+    putl_code(S, fp, "# ifdef YYPARSE_PARAM_TYPE\n");
+    putl_code(S, fp,
 	      "#  define YYPARSE_DECL() yyparse(YYPARSE_PARAM_TYPE YYPARSE_PARAM)\n");
-    putl_code(fp, "# else\n");
-    putl_code(fp, "#  define YYPARSE_DECL() yyparse(void *YYPARSE_PARAM)\n");
-    putl_code(fp, "# endif\n");
-    putl_code(fp, "#else\n");
+    putl_code(S, fp, "# else\n");
+    putl_code(S, fp, "#  define YYPARSE_DECL() yyparse(void *YYPARSE_PARAM)\n");
+    putl_code(S, fp, "# endif\n");
+    putl_code(S, fp, "#else\n");
 
     puts_code(fp, "# define YYPARSE_DECL() yyparse(");
-    puts_param_types(fp, parse_param, 0);
-    putl_code(fp, ")\n");
+    puts_param_types(fp, S->parse_param, 0);
+    putl_code(S, fp, ")\n");
 
-    putl_code(fp, "#endif\n");
+    putl_code(S, fp, "#endif\n");
 }
 
 static void
-output_lex_decl(FILE * fp)
+output_lex_decl(byacc_t* S, FILE * fp)
 {
-    putc_code(fp, '\n');
-    putl_code(fp, "/* Parameters sent to lex. */\n");
-    putl_code(fp, "#ifdef YYLEX_PARAM\n");
-    if (pure_parser)
+    putc_code(S, fp, '\n');
+    putl_code(S, fp, "/* Parameters sent to lex. */\n");
+    putl_code(S, fp, "#ifdef YYLEX_PARAM\n");
+    if (S->pure_parser)
     {
-	putl_code(fp, "# ifdef YYLEX_PARAM_TYPE\n");
+	putl_code(S, fp, "# ifdef YYLEX_PARAM_TYPE\n");
 #if defined(YYBTYACC)
-	if (locations)
+	if (S->locations)
 	{
-	    putl_code(fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
+	    putl_code(S, fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
 		      " YYLTYPE *yylloc,"
 		      " YYLEX_PARAM_TYPE YYLEX_PARAM)\n");
 	}
 	else
 #endif
 	{
-	    putl_code(fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
+	    putl_code(S, fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
 		      " YYLEX_PARAM_TYPE YYLEX_PARAM)\n");
 	}
-	putl_code(fp, "# else\n");
+	putl_code(S, fp, "# else\n");
 #if defined(YYBTYACC)
-	if (locations)
+	if (S->locations)
 	{
-	    putl_code(fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
+	    putl_code(S, fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
 		      " YYLTYPE *yylloc,"
 		      " void * YYLEX_PARAM)\n");
 	}
 	else
 #endif
 	{
-	    putl_code(fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
+	    putl_code(S, fp, "#  define YYLEX_DECL() yylex(YYSTYPE *yylval,"
 		      " void * YYLEX_PARAM)\n");
 	}
-	putl_code(fp, "# endif\n");
+	putl_code(S, fp, "# endif\n");
 #if defined(YYBTYACC)
-	if (locations)
-	    putl_code(fp,
+	if (S->locations)
+	    putl_code(S, fp,
 		      "# define YYLEX yylex(&yylval, &yylloc, YYLEX_PARAM)\n");
 	else
 #endif
-	    putl_code(fp, "# define YYLEX yylex(&yylval, YYLEX_PARAM)\n");
+	    putl_code(S, fp, "# define YYLEX yylex(&yylval, YYLEX_PARAM)\n");
     }
     else
     {
-	putl_code(fp, "# define YYLEX_DECL() yylex(void *YYLEX_PARAM)\n");
-	putl_code(fp, "# define YYLEX yylex(YYLEX_PARAM)\n");
+	putl_code(S, fp, "# define YYLEX_DECL() yylex(void *YYLEX_PARAM)\n");
+	putl_code(S, fp, "# define YYLEX yylex(YYLEX_PARAM)\n");
     }
-    putl_code(fp, "#else\n");
-    if (pure_parser && lex_param)
+    putl_code(S, fp, "#else\n");
+    if (S->pure_parser && S->lex_param)
     {
 #if defined(YYBTYACC)
-	if (locations)
+	if (S->locations)
 	    puts_code(fp,
 		      "# define YYLEX_DECL() yylex(YYSTYPE *yylval, YYLTYPE *yylloc, ");
 	else
 #endif
 	    puts_code(fp, "# define YYLEX_DECL() yylex(YYSTYPE *yylval, ");
-	puts_param_types(fp, lex_param, 0);
-	putl_code(fp, ")\n");
+	puts_param_types(fp, S->lex_param, 0);
+	putl_code(S, fp, ")\n");
 
 #if defined(YYBTYACC)
-	if (locations)
+	if (S->locations)
 	    puts_code(fp, "# define YYLEX yylex(&yylval, &yylloc, ");
 	else
 #endif
 	    puts_code(fp, "# define YYLEX yylex(&yylval, ");
-	puts_param_names(fp, lex_param, 0);
-	putl_code(fp, ")\n");
+	puts_param_names(fp, S->lex_param, 0);
+	putl_code(S, fp, ")\n");
     }
-    else if (pure_parser)
+    else if (S->pure_parser)
     {
 #if defined(YYBTYACC)
-	if (locations)
+	if (S->locations)
 	{
-	    putl_code(fp,
+	    putl_code(S, fp,
 		      "# define YYLEX_DECL() yylex(YYSTYPE *yylval, YYLTYPE *yylloc)\n");
-	    putl_code(fp, "# define YYLEX yylex(&yylval, &yylloc)\n");
+	    putl_code(S, fp, "# define YYLEX yylex(&yylval, &yylloc)\n");
 	}
 	else
 #endif
 	{
-	    putl_code(fp, "# define YYLEX_DECL() yylex(YYSTYPE *yylval)\n");
-	    putl_code(fp, "# define YYLEX yylex(&yylval)\n");
+	    putl_code(S, fp, "# define YYLEX_DECL() yylex(YYSTYPE *yylval)\n");
+	    putl_code(S, fp, "# define YYLEX yylex(&yylval)\n");
 	}
     }
-    else if (lex_param)
+    else if (S->lex_param)
     {
 	puts_code(fp, "# define YYLEX_DECL() yylex(");
-	puts_param_types(fp, lex_param, 0);
-	putl_code(fp, ")\n");
+	puts_param_types(fp, S->lex_param, 0);
+	putl_code(S, fp, ")\n");
 
 	puts_code(fp, "# define YYLEX yylex(");
-	puts_param_names(fp, lex_param, 0);
-	putl_code(fp, ")\n");
+	puts_param_names(fp, S->lex_param, 0);
+	putl_code(S, fp, ")\n");
     }
     else
     {
-	putl_code(fp, "# define YYLEX_DECL() yylex(void)\n");
-	putl_code(fp, "# define YYLEX yylex()\n");
+	putl_code(S, fp, "# define YYLEX_DECL() yylex(void)\n");
+	putl_code(S, fp, "# define YYLEX yylex()\n");
     }
-    putl_code(fp, "#endif\n");
+    putl_code(S, fp, "#endif\n");
 
     /*
      * Provide a prototype for yylex for the simplest case.  This is done for
      * better compatibility with older yacc's, but can be a problem if someone
      * uses "static int yylex(void);"
      */
-    if (!pure_parser
+    if (!S->pure_parser
 #if defined(YYBTYACC)
-	&& !backtrack
+	&& !S->backtrack
 #endif
-	&& !strcmp(symbol_prefix, "yy"))
+	&& !strcmp(S->symbol_prefix, "yy"))
     {
-	putl_code(fp, "\n");
-	putl_code(fp, "#if !(defined(yylex) || defined(YYSTATE))\n");
-	putl_code(fp, "int YYLEX_DECL();\n");
-	putl_code(fp, "#endif\n");
+	putl_code(S, fp, "\n");
+	putl_code(S, fp, "#if !(defined(yylex) || defined(YYSTATE))\n");
+	putl_code(S, fp, "int YYLEX_DECL();\n");
+	putl_code(S, fp, "#endif\n");
     }
 }
 
 static void
-output_error_decl(FILE * fp)
+output_error_decl(byacc_t* S, FILE * fp)
 {
-    putc_code(fp, '\n');
-    putl_code(fp, "/* Parameters sent to yyerror. */\n");
-    putl_code(fp, "#ifndef YYERROR_DECL\n");
+    putc_code(S, fp, '\n');
+    putl_code(S, fp, "/* Parameters sent to yyerror. */\n");
+    putl_code(S, fp, "#ifndef YYERROR_DECL\n");
     puts_code(fp, "#define YYERROR_DECL() yyerror(");
 #if defined(YYBTYACC)
-    if (locations)
+    if (S->locations)
 	puts_code(fp, "YYLTYPE *loc, ");
 #endif
-    puts_param_types(fp, parse_param, 1);
-    putl_code(fp, "const char *s)\n");
-    putl_code(fp, "#endif\n");
+    puts_param_types(fp, S->parse_param, 1);
+    putl_code(S, fp, "const char *s)\n");
+    putl_code(S, fp, "#endif\n");
 
-    putl_code(fp, "#ifndef YYERROR_CALL\n");
+    putl_code(S, fp, "#ifndef YYERROR_CALL\n");
 
     puts_code(fp, "#define YYERROR_CALL(msg) yyerror(");
 #if defined(YYBTYACC)
-    if (locations)
+    if (S->locations)
 	puts_code(fp, "&yylloc, ");
 #endif
-    puts_param_names(fp, parse_param, 1);
-    putl_code(fp, "msg)\n");
+    puts_param_names(fp, S->parse_param, 1);
+    putl_code(S, fp, "msg)\n");
 
-    putl_code(fp, "#endif\n");
+    putl_code(S, fp, "#endif\n");
 }
 
 #if defined(YYBTYACC)
 static void
-output_yydestruct_decl(FILE * fp)
+output_yydestruct_decl(byacc_t* S, FILE * fp)
 {
-    putc_code(fp, '\n');
-    putl_code(fp, "#ifndef YYDESTRUCT_DECL\n");
+    putc_code(S, fp, '\n');
+    putl_code(S, fp, "#ifndef YYDESTRUCT_DECL\n");
 
     puts_code(fp,
 	      "#define YYDESTRUCT_DECL() "
 	      "yydestruct(const char *msg, int psymb, YYSTYPE *val");
 #if defined(YYBTYACC)
-    if (locations)
+    if (S->locations)
 	puts_code(fp, ", YYLTYPE *loc");
 #endif
-    if (parse_param)
+    if (S->parse_param)
     {
 	puts_code(fp, ", ");
-	puts_param_types(fp, parse_param, 0);
+	puts_param_types(fp, S->parse_param, 0);
     }
-    putl_code(fp, ")\n");
+    putl_code(S, fp, ")\n");
 
-    putl_code(fp, "#endif\n");
+    putl_code(S, fp, "#endif\n");
 
-    putl_code(fp, "#ifndef YYDESTRUCT_CALL\n");
+    putl_code(S, fp, "#ifndef YYDESTRUCT_CALL\n");
 
     puts_code(fp, "#define YYDESTRUCT_CALL(msg, psymb, val");
 #if defined(YYBTYACC)
-    if (locations)
+    if (S->locations)
 	puts_code(fp, ", loc");
 #endif
     puts_code(fp, ") yydestruct(msg, psymb, val");
 #if defined(YYBTYACC)
-    if (locations)
+    if (S->locations)
 	puts_code(fp, ", loc");
 #endif
-    if (parse_param)
+    if (S->parse_param)
     {
 	puts_code(fp, ", ");
-	puts_param_names(fp, parse_param, 0);
+	puts_param_names(fp, S->parse_param, 0);
     }
-    putl_code(fp, ")\n");
+    putl_code(S, fp, ")\n");
 
-    putl_code(fp, "#endif\n");
+    putl_code(S, fp, "#endif\n");
 }
 
 static void
-output_initial_action(void)
+output_initial_action(byacc_t* S)
 {
-    if (initial_action)
-	fprintf(code_file, "%s\n", initial_action);
+    if (S->initial_action)
+	fprintf(S->code_file, "%s\n", S->initial_action);
 }
 
 static void
-output_yydestruct_impl(void)
+output_yydestruct_impl(byacc_t* S)
 {
     int i;
     char *s, *destructor_code;
 
-    putc_code(code_file, '\n');
-    putl_code(code_file, "/* Release memory associated with symbol. */\n");
-    putl_code(code_file, "#if ! defined YYDESTRUCT_IS_DECLARED\n");
-    putl_code(code_file, "static void\n");
-    putl_code(code_file, "YYDESTRUCT_DECL()\n");
-    putl_code(code_file, "{\n");
-    putl_code(code_file, "    switch (psymb)\n");
-    putl_code(code_file, "    {\n");
-    for (i = 2; i < nsyms; ++i)
+    putc_code(S, S->code_file, '\n');
+    putl_code(S, S->code_file, "/* Release memory associated with symbol. */\n");
+    putl_code(S, S->code_file, "#if ! defined YYDESTRUCT_IS_DECLARED\n");
+    putl_code(S, S->code_file, "static void\n");
+    putl_code(S, S->code_file, "YYDESTRUCT_DECL()\n");
+    putl_code(S, S->code_file, "{\n");
+    putl_code(S, S->code_file, "    switch (psymb)\n");
+    putl_code(S, S->code_file, "    {\n");
+    for (i = 2; i < S->nsyms; ++i)
     {
-	if ((destructor_code = symbol_destructor[i]) != NULL)
+	if ((destructor_code = S->symbol_destructor[i]) != NULL)
 	{
-	    ++outline;
-	    fprintf(code_file, "\tcase %d:\n", symbol_pval[i]);
+	    ++S->outline;
+	    fprintf(S->code_file, "\tcase %d:\n", S->symbol_pval[i]);
 	    /* comprehend the number of lines in the destructor code */
 	    for (s = destructor_code; (s = strchr(s, '\n')) != NULL; s++)
-		++outline;
-	    puts_code(code_file, destructor_code);
-	    putc_code(code_file, '\n');
-	    write_code_lineno(code_file);
-	    putl_code(code_file, "\tbreak;\n");
+		++S->outline;
+	    puts_code(S->code_file, destructor_code);
+	    putc_code(S, S->code_file, '\n');
+	    write_code_lineno(S, S->code_file);
+	    putl_code(S, S->code_file, "\tbreak;\n");
 	    FREE(destructor_code);
 	}
     }
-    putl_code(code_file, "    }\n");
-    putl_code(code_file, "}\n");
-    putl_code(code_file, "#define YYDESTRUCT_IS_DECLARED 1\n");
-    putl_code(code_file, "#endif\n");
+    putl_code(S, S->code_file, "    }\n");
+    putl_code(S, S->code_file, "}\n");
+    putl_code(S, S->code_file, "#define YYDESTRUCT_IS_DECLARED 1\n");
+    putl_code(S, S->code_file, "#endif\n");
 
-    DO_FREE(symbol_destructor);
+    DO_FREE(S->symbol_destructor);
 }
 #endif
 
 static void
-free_itemsets(void)
+free_itemsets(byacc_t* S)
 {
     core *cp, *next;
 
-    FREE(state_table);
-    for (cp = first_state; cp; cp = next)
+    FREE(S->state_table);
+    for (cp = S->first_state; cp; cp = next)
     {
 	next = cp->next;
 	FREE(cp);
@@ -2021,12 +1994,12 @@ free_itemsets(void)
 }
 
 static void
-free_shifts(void)
+free_shifts(byacc_t* S)
 {
     shifts *sp, *next;
 
-    FREE(shift_table);
-    for (sp = first_shift; sp; sp = next)
+    FREE(S->shift_table);
+    for (sp = S->first_shift; sp; sp = next)
     {
 	next = sp->next;
 	FREE(sp);
@@ -2034,12 +2007,12 @@ free_shifts(void)
 }
 
 static void
-free_reductions(void)
+free_reductions(byacc_t* S)
 {
     reductions *rp, *next;
 
-    FREE(reduction_table);
-    for (rp = first_reduction; rp; rp = next)
+    FREE(S->reduction_table);
+    for (rp = S->first_reduction; rp; rp = next)
     {
 	next = rp->next;
 	FREE(rp);
@@ -2047,7 +2020,7 @@ free_reductions(void)
 }
 
 static void
-output_externs(FILE * fp, const char *const section[])
+output_externs(byacc_t* S, FILE * fp, const char *const section[])
 {
     int i;
     const char *s;
@@ -2058,151 +2031,148 @@ output_externs(FILE * fp, const char *const section[])
 	   C pre-processor directives with 'extern ' */
 	if (*s && (*s != '#'))
 	    fputs("extern\t", fp);
-	if (fp == code_file)
-	    ++outline;
+	if (fp == S->code_file)
+	    ++S->outline;
 	fprintf(fp, "%s\n", s);
     }
 }
 
 void
-output(void)
+output(byacc_t* S)
 {
     FILE *fp;
 
-    free_itemsets();
-    free_shifts();
-    free_reductions();
+    free_itemsets(S);
+    free_shifts(S);
+    free_reductions(S);
 
-    output_code_lines(code_file, CODE_TOP);
+    output_code_lines(S, S->code_file, CODE_TOP);
 #if defined(YYBTYACC)
-    output_backtracking_parser(output_file);
-    if (rflag)
-	output_backtracking_parser(code_file);
+    output_backtracking_parser(S, S->output_file);
+    if (S->rflag)
+	output_backtracking_parser(S, S->code_file);
 #endif
 
-    if (iflag)
+    if (S->iflag)
     {
-	write_code_lineno(code_file);
-	++outline;
-	fprintf(code_file, "#include \"%s\"\n", externs_file_name);
-	fp = externs_file;
+	write_code_lineno(S, S->code_file);
+	++S->outline;
+	fprintf(S->code_file, "#include \"%s\"\n", S->externs_file_name);
+	fp = S->externs_file;
     }
     else
-	fp = code_file;
+	fp = S->code_file;
 
-    output_prefix(fp);
-    output_pure_parser(fp);
-#if defined(YY_NO_LEAKS)
-    output_no_leaks(fp);
-#endif
-    output_stored_text(fp);
-    output_stype(fp);
+    output_prefix(S, fp);
+    output_pure_parser(S, fp);
+    output_stored_text(S, fp);
+    output_stype(S, fp);
 #if defined(YYBTYACC)
-    if (locations)
-	output_ltype(fp);
+    if (S->locations)
+	output_ltype(S, fp);
 #endif
-    output_parse_decl(fp);
-    output_lex_decl(fp);
-    output_error_decl(fp);
+    output_parse_decl(S, fp);
+    output_lex_decl(S, fp);
+    output_error_decl(S, fp);
 #if defined(YYBTYACC)
-    if (destructor)
-	output_yydestruct_decl(fp);
+    if (S->destructor)
+	output_yydestruct_decl(S, fp);
 #endif
-    if (iflag || !rflag)
+    if (S->iflag || !S->rflag)
     {
-	write_section(fp, xdecls);
+	write_section(S, fp, ygv_xdecls);
     }
 
-    if (iflag)
+    if (S->iflag)
     {
-	fprintf(externs_file, "\n");
-	output_yydebug(externs_file);
-	output_externs(externs_file, global_vars);
-	if (!pure_parser)
-	    output_externs(externs_file, impure_vars);
-	if (dflag)
+	fprintf(S->externs_file, "\n");
+	output_yydebug(S, S->externs_file);
+	output_externs(S, S->externs_file, ygv_global_vars);
+	if (!S->pure_parser)
+	    output_externs(S, S->externs_file, ygv_impure_vars);
+	if (S->dflag)
 	{
-	    ++outline;
-	    fprintf(code_file, "#include \"%s\"\n", defines_file_name);
+	    ++S->outline;
+	    fprintf(S->code_file, "#include \"%s\"\n", S->defines_file_name);
 	}
 	else
-	    output_defines(externs_file);
+	    output_defines(S, S->externs_file);
     }
     else
     {
-	putc_code(code_file, '\n');
-	output_defines(code_file);
+	putc_code(S, S->code_file, '\n');
+	output_defines(S, S->code_file);
     }
 
-    if (dflag)
+    if (S->dflag)
     {
-	start_defines_file();
-	output_defines(defines_file);
-	end_defines_file();
+	start_defines_file(S);
+	output_defines(S, S->defines_file);
+	end_defines_file(S);
     }
 
-    output_rule_data();
-    output_yydefred();
+    output_rule_data(S);
+    output_yydefred(S);
 #if defined(YYBTYACC)
-    output_accessing_symbols();
+    output_accessing_symbols(S);
 #endif
-    output_actions();
-    free_parser();
-    output_debug();
+    output_actions(S);
+    free_parser(S);
+    output_debug(S);
 
-    if (rflag)
+    if (S->rflag)
     {
-	write_section(code_file, xdecls);
-	output_YYINT_typedef(code_file);
-	write_section(code_file, tables);
+	write_section(S, S->code_file, ygv_xdecls);
+	output_YYINT_typedef(S, S->code_file);
+	write_section(S, S->code_file, ygv_tables);
     }
 
-    write_section(code_file, global_vars);
-    if (!pure_parser)
+    write_section(S, S->code_file, ygv_global_vars);
+    if (!S->pure_parser)
     {
-	write_section(code_file, impure_vars);
+	write_section(S, S->code_file, ygv_impure_vars);
     }
-    output_code_lines(code_file, CODE_REQUIRES);
+    output_code_lines(S, S->code_file, CODE_REQUIRES);
 
-    write_section(code_file, hdr_defs);
-    if (!pure_parser)
+    write_section(S, S->code_file, ygv_hdr_defs);
+    if (!S->pure_parser)
     {
-	write_section(code_file, hdr_vars);
+	write_section(S, S->code_file, ygv_hdr_vars);
     }
 
-    output_code_lines(code_file, CODE_PROVIDES);
-    output_code_lines(code_file, CODE_HEADER);
+    output_code_lines(S, S->code_file, CODE_PROVIDES);
+    output_code_lines(S, S->code_file, CODE_HEADER);
 
-    output_trailing_text();
+    output_trailing_text(S);
 #if defined(YYBTYACC)
-    if (destructor)
-	output_yydestruct_impl();
+    if (S->destructor)
+	output_yydestruct_impl(S);
 #endif
-    write_section(code_file, body_1);
-    if (pure_parser)
+    write_section(S, S->code_file, ygv_body_1);
+    if (S->pure_parser)
     {
-	write_section(code_file, body_vars);
+	write_section(S, S->code_file, ygv_body_vars);
     }
-    write_section(code_file, body_2);
-    if (pure_parser)
+    write_section(S, S->code_file, ygv_body_2);
+    if (S->pure_parser)
     {
-	write_section(code_file, init_vars);
+	write_section(S, S->code_file, ygv_init_vars);
     }
 #if defined(YYBTYACC)
-    if (initial_action)
-	output_initial_action();
+    if (S->initial_action)
+	output_initial_action(S);
 #endif
-    write_section(code_file, body_3);
-    output_semantic_actions();
-    write_section(code_file, trailer);
+    write_section(S, S->code_file, ygv_body_3);
+    output_semantic_actions(S);
+    write_section(S, S->code_file, ygv_trailer);
 }
 
 #ifdef NO_LEAKS
 void
-output_leaks(void)
+output_leaks(byacc_t* S)
 {
-    DO_FREE(tally);
-    DO_FREE(width);
-    DO_FREE(order);
+    DO_FREE(S->tally);
+    DO_FREE(S->width);
+    DO_FREE(S->order);
 }
 #endif
