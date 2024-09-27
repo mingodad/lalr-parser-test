@@ -52,6 +52,9 @@ done(byacc_t* S, int k)
 {
     DO_CLOSE(S->input_file);
     DO_CLOSE(S->output_file);
+    DO_CLOSE(S->ebnf_file);
+    DO_CLOSE(S->lemon_file);
+    DO_CLOSE(S->naked_file);
     if (S->iflag)
 	DO_CLOSE(S->externs_file);
     if (S->rflag)
